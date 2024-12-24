@@ -159,7 +159,7 @@ class PPO::Timestate {
 class PPO::Episode {
     public:
     // CONSTRUCTOR
-    Episode(const size_t input_size, const size_t output_size, const size_t max_timestates = 1000) : timestates(max_timestates) {
+    Episode(const size_t input_size, const size_t output_size, const size_t max_timestates) : timestates(max_timestates) {
         this->input_size = input_size;
         this->output_size = output_size;
     }
