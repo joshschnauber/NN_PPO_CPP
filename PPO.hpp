@@ -38,10 +38,61 @@ class PPO {
         float value_learning_rate               = 1e-2f;
         float policy_learning_rate              = 1e-2f;
     };
-    // Class representing timestates for one agent.
-    class Timestate;
-    class Episode;
+    // Class representing all the timestates for one agent.
+    class Episode {
+        public:
+        // One single timestate.
+        class Timestate {
+            public:
+            Timestate();
+            private:
+            Timestate(const size_t input_size, const size_t output_size);
+            
+            public:
+            float* getState()               { return state.data(); }
+            const float* getState() const   { return state.data(); }
+            float* getActions()             { return actions.data(); }
+            const float* getActions() const { return actions.data(); }
+            float* getChoices()             { return choices.data(); }
+            const float* getChoices() const { return choices.data(); }
+            float& getReward()              { return reward; }
+            float getReward() const         { return reward; }
 
+            private:
+            std::vector<float> state;   // Inputs to network
+            std::vector<float> actions; // Outputs representing a normal distribution
+            std::vector<float> choices; // Choices sampled from the distribution
+            float reward;   // Raw reward at the timestate
+
+            friend class PPO::Episode;
+        };
+
+        public:
+        Episode(const size_t input_size, const size_t output_size, const size_t max_timestates);
+        private:
+        Episode(const std::vector<Episode>& episodes);
+        
+        public:
+        // Appends a new timestate to the end of the episode and returns it. To be filled with data by caller.
+        Timestate& appendTimestate();
+        // Appends a new timestate to the end of the episode and fills it with the provided data.
+        void appendTimestate(const float* state, const float* actions, const float* choices, const float reward);
+        // Adds the reward to the last timestate. Intended to be used with action repeating.
+        void addLastTimestateReward(const float reward);
+        const Timestate& operator[](size_t index) const         { return timestates[index]; }
+        const Timestate& back() const                           { return timestates.back(); }
+        size_t size() const                                     { return timestates.size(); }
+
+        private:
+        static size_t sumEpisodeSizes(const std::vector<Episode>& episodes);
+
+        private:
+        CircularBuffer<Timestate> timestates;
+        size_t input_size;
+        size_t output_size;
+
+        friend class PPO;
+    };
 
     public:
     PPO();
@@ -54,6 +105,8 @@ class PPO {
     void initialize();
     // Sets the hyperparameters for PPO
     void setHyperparameters(const Hyperparameters& hyperparams);
+    // Sets the seed for the randomizer
+    void seed(const unsigned int seed);
     
     // Trains the AI with the given episode
     void train(const Episode& episode);
@@ -80,7 +133,7 @@ class PPO {
     // Gets output from policy network and samples choices.
     // Essentially calls getPolicyOutputs(), sampleChoices(), and transformSampledChoices(), in that order.
     // This is all you should really need in most cases.
-    void getPolicyChoices(const float* state, float* actions, float* choices, float* aug_choices);
+    void getPolicyChoices(const float* state, float* actions, float* choices, float* aug_choices = nullptr);
 
     // Getters
     size_t getStateSize() const                     { return policy_network.getInputLayerSize(); }
@@ -92,12 +145,12 @@ class PPO {
 
 
     private:
-    // Trains the value network and returns the loss
+    // Trains the value network
     void trainValueNetwork(const Episode& episode, const float* value_target);
     // Trains the policy network
     void trainPolicyNetwork(const Episode& episode, const float* advantages);
 
-    // Returns the probability density at the mean of a normal distribution
+    // Returns the probability density at the given choice in a normal distribution
     static float probabilityDensity(const float mean, const float stdev, const float choice);
 
 
@@ -130,88 +183,57 @@ class PPO {
 
 
 // NESTED CLASS DEFINITIONS
-class PPO::Timestate {
-    public:
-    // CONSTRUCTORS
-    Timestate() { }
-    Timestate(const size_t input_size, const size_t output_size) : state(input_size), actions(output_size), choices(output_size/2){
-        reward = 0;
-    }
-    
-    // GETTERS
-    float* getState()               { return state.data(); }
-    const float* getState() const   { return state.data(); }
-    float* getActions()             { return actions.data(); }
-    const float* getActions() const { return actions.data(); }
-    float* getChoices()             { return choices.data(); }
-    const float* getChoices() const { return choices.data(); }
-    float& getReward()              { return reward; }
-    float getReward() const         { return reward; }
+PPO::Episode::Timestate::Timestate() { }
+PPO::Episode::Timestate::Timestate(const size_t input_size, const size_t output_size) : state(input_size), actions(output_size), choices(output_size/2), reward(0) { }
+PPO::Episode::Episode(const size_t input_size, const size_t output_size, const size_t max_timestates) : timestates(max_timestates) {
+    this->input_size = input_size;
+    this->output_size = output_size;
+}
+PPO::Episode::Episode(const std::vector<Episode>& episodes) : timestates(sumEpisodeSizes(episodes)) {
+    // Collect all episodes into a larger episode
+    const size_t input_size = episodes[0].input_size, output_size = episodes[0].output_size;
+    for(int i = 0; i < episodes.size(); ++i){
+        if( episodes[i].input_size != input_size  ||  episodes[i].output_size != output_size)
+            throw std::invalid_argument("Episodes do not have the same input or output sizes.");
 
-    private:
-    std::vector<float> state;   // Inputs to network
-    std::vector<float> actions; // Outputs representing a normal distribution
-    std::vector<float> choices; // Choices sampled from the distribution
-    float reward;               // Raw reward at the timestate
-
-    friend class PPO::Episode;
-};
-class PPO::Episode {
-    public:
-    // CONSTRUCTOR
-    Episode(const size_t input_size, const size_t output_size, const size_t max_timestates) : timestates(max_timestates) {
-        this->input_size = input_size;
-        this->output_size = output_size;
-    }
-    Episode(const std::vector<Episode>& episodes) : timestates(sumEpisodeSizes(episodes)) {
-        // Collect all episodes into a larger episode
-        const size_t input_size = episodes[0].input_size, output_size = episodes[0].output_size;
-        for(int i = 0; i < episodes.size(); ++i){
-            if( episodes[i].input_size != input_size  ||  episodes[i].output_size != output_size)
-                throw std::invalid_argument("Episodes do not have the same input or output sizes.");
-
-            for(int j = 0; j < episodes[i].size(); ++j){
-                timestates.push_back(episodes[i].timestates[j]);
-            }
+        for(int j = 0; j < episodes[i].size(); ++j){
+            timestates.push_back(episodes[i].timestates[j]);
         }
     }
-    
-    // INTERFACE
-    Timestate& appendTimestate(){
-        timestates.push_back(Timestate(input_size, output_size));
-        return timestates.back();
-    }
-    void addRewardToBack(const float reward){
-        timestates.back().reward += reward;
-    }
-    // GETTERS
-    size_t size() const{
-        return timestates.size();
-    }
-    const CircularBuffer<Timestate>& getTimeStates() const{
-        return timestates;
-    }
-    const Timestate& back() const{
-        return timestates.back();
-    }
+}
 
-    private:
-    static size_t sumEpisodeSizes(const std::vector<Episode>& episodes){
-        size_t sum = 0;
-        for(int i = 0; i < episodes.size(); ++i){
-            sum += episodes[i].size();
-        }
-        return sum;
+PPO::Episode::Timestate& PPO::Episode::appendTimestate(){
+    timestates.push_back(Timestate(input_size, output_size));
+    return timestates.back();
+}
+void PPO::Episode::appendTimestate(const float* state, const float* actions, const float* choices, const float reward){
+    timestates.push_back(Timestate(input_size, output_size));
+    Timestate& ts = timestates.back();
+    // Fill state data
+    for(int i = 0; i < input_size; ++i){
+        ts.state[i] = state[i];
     }
-
-
-    private:
-    CircularBuffer<Timestate> timestates;
-    size_t input_size;
-    size_t output_size;
-
-    friend class PPO;
-};
+    // Fill action data
+    for(int i = 0; i < output_size; ++i){
+        ts.actions[i] = actions[i];
+    }
+    // Fill choice data
+    for(int i = 0; i < output_size; ++i){
+        ts.choices[i] = choices[i];
+    }
+    // Fill reward data
+    ts.reward = reward;
+}
+void PPO::Episode::addLastTimestateReward(const float reward){
+    timestates.back().reward += reward;
+}
+size_t PPO::Episode::sumEpisodeSizes(const std::vector<Episode>& episodes){
+    size_t sum = 0;
+    for(int i = 0; i < episodes.size(); ++i){
+        sum += episodes[i].size();
+    }
+    return sum;
+}
 
 // CONSTRUCTORS
 PPO::PPO() { }
@@ -258,13 +280,16 @@ void PPO::setHyperparameters(const Hyperparameters& hyperparams){
     
     this->hyperparams = hyperparams;
 }
+void PPO::seed(const unsigned int seed){
+    rnd_gen = std::mt19937(seed);
+}
 
 // PPO INTERFACE
 void PPO::train(const Episode& episode){
     if(policy_network.getInputLayerSize() != episode.input_size  ||  policy_network.getOutputLayerSize() != episode.output_size)
         throw std::invalid_argument("Episode input or output size doesn't match PPO input or output size.");
 
-    const int episode_size = episode.getTimeStates().size();
+    const int episode_size = episode.size();
     // Find advantages
     float advantages[episode_size];
     float _value_targets[episode_size];
@@ -313,8 +338,7 @@ void PPO::train(const std::vector<Episode>& episodes){
 }
 
 void PPO::computeAdvantages(const Episode& episode, float* advantages) const {
-    const CircularBuffer<Timestate>& timestates = episode.getTimeStates();
-    const int timestate_count = timestates.size();
+    const int timestate_count = episode.size();
 
     // Store output value for the one output node
     float out[1];
@@ -324,24 +348,23 @@ void PPO::computeAdvantages(const Episode& episode, float* advantages) const {
 
     // Find value for last timetstep
     const int T = timestate_count-1;
-    value_network.propagate(timestates[T].getState(), out);
+    value_network.propagate(episode[T].getState(), out);
     const float value = (*out);
-    advantages[T] = timestates[T].getReward() - value;
+    advantages[T] = episode[T].getReward() - value;
     timestep_reward += value;
 
     for(int t = T-1; t >=0; --t){
         // Find reward guess by value network
-        value_network.propagate(timestates[t].getState(), out);
+        value_network.propagate(episode[t].getState(), out);
         const float value = (*out);
         
         // Find augmented reward for this timestep, and save it for previous step
-        timestep_reward = timestates[t].getReward() + timestep_reward*hyperparams.reward_reduction;
+        timestep_reward = episode[t].getReward() + timestep_reward*hyperparams.reward_reduction;
         advantages[t] = timestep_reward - value;
     }
 }
 void PPO::computeAdvantagesWithSmoothing(const Episode& episode, float* advantages, float* value_targets) const {
-    const CircularBuffer<Timestate>& timestates = episode.getTimeStates();
-    const int timestate_count = timestates.size();
+    const int timestate_count = episode.size();
 
     // Store values from one timestep ahead
     float future_value = 0;
@@ -350,10 +373,10 @@ void PPO::computeAdvantagesWithSmoothing(const Episode& episode, float* advantag
     for(int t = timestate_count-1; t >=0; --t){
         // Find reward guess by value network
         float value;
-        value_network.propagate(timestates[t].getState(), &value);
+        value_network.propagate(episode[t].getState(), &value);
         
         // Find augmented reward for this timestep, and save it for previous step
-        const float delta = timestates[t].getReward()  +  (hyperparams.reward_reduction*future_value)  -  value;
+        const float delta = episode[t].getReward()  +  (hyperparams.reward_reduction*future_value)  -  value;
         advantages[t] = delta  +  (hyperparams.reward_reduction*hyperparams.reward_smoothing_factor)*future_advantage;
         
         // Add the value and advantages for the value target
@@ -365,12 +388,11 @@ void PPO::computeAdvantagesWithSmoothing(const Episode& episode, float* advantag
     }
 }
 void PPO::computeDiscountedRewards(const Episode& episode, float* discounted_rewards) const {
-    const CircularBuffer<Timestate>& timestates = episode.getTimeStates();
-    const int timestate_count = timestates.size();
+    const int timestate_count = episode.size();
 
     float prev_reward = 0;
     for(int t = timestate_count-1; t >=0; --t){
-        prev_reward = timestates[t].getReward() + hyperparams.reward_reduction*prev_reward;
+        prev_reward = episode[t].getReward() + hyperparams.reward_reduction*prev_reward;
         discounted_rewards[t] = prev_reward;
     }
 }
@@ -414,13 +436,13 @@ void PPO::getPolicyChoices(const float* state, float* actions, float* choices, f
     // Sample choice from distribution
     sampleChoices(actions, choices);
     // Transform choice to fit within range
-    transformSampledChoices(choices, aug_choices);
+    if(aug_choices != nullptr)
+        transformSampledChoices(choices, aug_choices);
 }
 
 // INTERNAL FUNCTIONS
 void PPO::trainValueNetwork(const Episode& episode, const float* value_target){
-    const CircularBuffer<Timestate>& timestates = episode.getTimeStates();
-    const int timestate_count = timestates.size();
+    const int timestate_count = episode.size();
 
     // Store values for each node
     const int node_count = value_network.getPropagateNodeCount();
@@ -457,14 +479,14 @@ void PPO::trainValueNetwork(const Episode& episode, const float* value_target){
                 const int t = timestep_indexes[l];
                 
                 // Find reward guess by value network
-                value_network.propagateStore(timestates[t].getState(), prev_node_vals, post_node_vals);
+                value_network.propagateStore(episode[t].getState(), prev_node_vals, post_node_vals);
                 const float value = post_node_vals[node_count-1];
                 // Calculate loss derivative
                 const float loss_D = -2 * (value_target[t] - value);
                 // Find weights for current values
                 float weight_grad[weight_count];
                 float bias_grad[bias_count];
-                value_network.backpropagateStore(timestates[t].getState(), prev_node_vals, post_node_vals, &loss_D, weight_grad, bias_grad);
+                value_network.backpropagateStore(episode[t].getState(), prev_node_vals, post_node_vals, &loss_D, weight_grad, bias_grad);
 
                 // Add weights to totals
                 for(int i = 0; i < weight_count; ++i)
@@ -510,8 +532,7 @@ void PPO::trainValueNetwork(const Episode& episode, const float* value_target){
     }
 }
 void PPO::trainPolicyNetwork(const Episode& episode, const float* advantages){
-    const CircularBuffer<Timestate>& timestates = episode.getTimeStates();
-    const int timestate_count = timestates.size();
+    const int timestate_count = episode.size();
 
     // Store starting index for outputs
     const int output_index = policy_network.getBiasLayerIndex(policy_network.getHiddenLayerCount());
@@ -531,7 +552,7 @@ void PPO::trainPolicyNetwork(const Episode& episode, const float* advantages){
     float prob_old[timestate_count][half_output_count];
     for(int t = 0; t < timestate_count; ++t){
         for(int i = 0; i < half_output_count; ++i){
-            prob_old[t][i] = probabilityDensity(timestates[t].getActions()[i], timestates[t].getActions()[half_output_count + i], timestates[t].getChoices()[i]);
+            prob_old[t][i] = probabilityDensity(episode[t].getActions()[i], episode[t].getActions()[half_output_count + i], episode[t].getChoices()[i]);
         }
     }
 
@@ -567,14 +588,14 @@ void PPO::trainPolicyNetwork(const Episode& episode, const float* advantages){
                 float bias_grad[bias_count];
 
                 // Get outputs for the new policy
-                policy_network.propagateStore(timestates[t].getState(), prev_node_vals, post_node_vals);
+                policy_network.propagateStore(episode[t].getState(), prev_node_vals, post_node_vals);
                 float *out = post_node_vals + output_index;
 
                 // Find probability of this action with the updated policy
                 float prob_new[half_output_count];
                 float r[half_output_count];
                 for(int i = 0; i < half_output_count; ++i){
-                    prob_new[i] = probabilityDensity(out[i], out[half_output_count + i], timestates[t].getChoices()[i]);
+                    prob_new[i] = probabilityDensity(out[i], out[half_output_count + i], episode[t].getChoices()[i]);
                     r[i] = prob_new[i] / prob_old[t][i];
                 }
 
@@ -601,7 +622,7 @@ void PPO::trainPolicyNetwork(const Episode& episode, const float* advantages){
                         const float mean =  out[i];
                         const float stddev = out[half_output_count + i];
                         const float stddev_2 = stddev*stddev;
-                        const float mean_diff = timestates[t].getChoices()[i] - mean;
+                        const float mean_diff = episode[t].getChoices()[i] - mean;
 
                         // Mean
                         loss_D[i] =                     (advantages[t]) * (r[i]) * (mean_diff / stddev_2);
@@ -612,7 +633,7 @@ void PPO::trainPolicyNetwork(const Episode& episode, const float* advantages){
                 }
 
                 // Backpropagate with the given loss derivative
-                policy_network.backpropagateStore(timestates[t].getState(), prev_node_vals, post_node_vals, loss_D, weight_grad, bias_grad);
+                policy_network.backpropagateStore(episode[t].getState(), prev_node_vals, post_node_vals, loss_D, weight_grad, bias_grad);
 
                 // Add weights to totals
                 for(int i = 0; i < weight_count; ++i)

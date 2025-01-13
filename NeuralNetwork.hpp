@@ -34,8 +34,9 @@ class NeuralNetwork {
     const static Activation EXP;
     const static Activation POW_1P1;
     // Output activation functions
-    const static OutputActivations ACTIVATIONS(const Activation& activation, const size_t output_size);
+    const static OutputActivations ACTIVATIONS(const Activation& activation, const size_t layer_size);
     const static OutputActivations ACTIVATIONS(const std::vector<Activation>& activations);
+    const static OutputActivations SOFTMAX(const size_t layer_size);
 
 
     public:
@@ -179,15 +180,15 @@ constexpr NeuralNetwork::Activation NeuralNetwork::POW_1P1 = {
 };
     
 // OUTPUT ACTIVATIONS
-const NeuralNetwork::OutputActivations NeuralNetwork::ACTIVATIONS(const Activation& activation, const size_t output_size){
+const NeuralNetwork::OutputActivations NeuralNetwork::ACTIVATIONS(const Activation& activation, const size_t layer_size){
     return {
-        [activation, output_size](const float* p_v, float* v){
-            for(size_t i = 0; i < output_size; ++i){
+        [activation, layer_size](const float* p_v, float* v){
+            for(size_t i = 0; i < layer_size; ++i){
                 v[i] = activation.fn(p_v[i]);
             }
         },
-        [activation, output_size](const float* p_v, float* v){
-            for(size_t i = 0; i < output_size; ++i){
+        [activation, layer_size](const float* p_v, float* v){
+            for(size_t i = 0; i < layer_size; ++i){
                 v[i] = activation.fn_d(p_v[i]);
             }
         }
@@ -203,6 +204,42 @@ const NeuralNetwork::OutputActivations NeuralNetwork::ACTIVATIONS(const std::vec
         [activations](const float* p_v, float* v){
             for(size_t i = 0; i < activations.size(); ++i){
                 v[i] = activations[i].fn_d(p_v[i]);
+            }
+        }
+    };
+}
+const NeuralNetwork::OutputActivations NeuralNetwork::SOFTMAX(const size_t layer_size){ // Finds derivative of just softmax, but ideally the derivative of the loss should purely be (actual-softmax)
+    return {
+        [layer_size](const float* p_v, float* v){
+            float sum = 0;
+            for(size_t i = 0; i < layer_size; ++i){
+                v[i] = std::exp(p_v[i]);
+                sum += v[i];
+            }
+            for(size_t i = 0; i < layer_size; ++i){
+                v[i] = v[i] / sum;
+            }
+        },
+        [layer_size](const float* p_v, float* v){
+            // Find softmax first
+            float softmax[layer_size];
+            float sum = 0;
+            for(size_t i = 0; i < layer_size; ++i){
+                softmax[i] = std::exp(p_v[i]);
+                sum += softmax[i];
+            }
+            for(size_t i = 0; i < layer_size; ++i){
+                softmax[i] = softmax[i] / sum;
+            }
+            // Use softmax to find derivative
+            for(int i = 0; i < layer_size; ++i){ // Derivative of each value
+                v[i] = 0;
+                for(int j = 0; j < layer_size; ++j){ // Sum the derivatives with respect to each other value
+                    if(i == j)
+                        v[i] += softmax[i]*(1-softmax[i]);
+                    else
+                        v[i] += -softmax[i]*softmax[j];
+                }
             }
         }
     };
@@ -410,12 +447,14 @@ void NeuralNetwork::backpropagateStore( const float* inputs, const float* prev_n
         const int node_index = this_layer_start_index + i;
         // Bias
                                     //output_activations[i].fn_d(prev_node_vals[node_index])
-        bias_grad[node_index] = (1) * prev_outputs_d[i] * (output_D[i]) / output_layer_size;
+        bias_grad[node_index] = (1) * prev_outputs_d[i] * (output_D[i]);
         
         // Weights
         for(int j = hidden_layer_size-1; j >= 0; --j){
             weight_grad[weight_start_index + j] = post_node_vals[prev_layer_start_index + j] * bias_grad[node_index]; 
             weight_sums[j] += weights[weight_start_index + j] * bias_grad[node_index];
+            // Average the derivatives here, because this is where the output derivatives "meet up"
+            weight_sums[j] /= output_layer_size;
         }
 
         weight_start_index -= hidden_layer_size;
