@@ -43,12 +43,44 @@ int main(int argc, char **argv){
         }
     }
 
+
     // Initialize network
-    NeuralNetwork network(  INPUT_COUNT, OUTPUT_COUNT, hidden_layer_size, hidden_layer_count,
-                            NeuralNetwork::RELU, NeuralNetwork::ACTIVATIONS(NeuralNetwork::SIGMOID, OUTPUT_COUNT));
+    jai::NeuralNetwork network( INPUT_COUNT, OUTPUT_COUNT, hidden_layer_size, hidden_layer_count,
+                                jai::ELU, 
+                                jai::SOFTMAX(INPUT_COUNT));
+                                //jai::ACTIVATION(jai::SIGMOID, INPUT_COUNT));
     network.kaimingInit();
+    const jai::LossFunction sqrd_diff = jai::SQUARED_DIFF(INPUT_COUNT);
+
 
     // Train network for a fixed number of steps
+    std::cout << "Start Training: " << c << " datapoints\n";
+    float total_loss = 0;
+    std::srand(std::time(0));
+    for(int i = 0; i < c; i++){
+        // Get two random numbers
+        float in[INPUT_COUNT];
+        in[0] = randomRange(-10, 10);
+        in[1] = randomRange(-10, 10);
+        const bool lessThan = in[0] < in[1];
+        
+        // Determine actual output values (1 for larger number, 0 for smaller number)
+        float actual_values[OUTPUT_COUNT];
+        actual_values[0] = !lessThan ?  1 : 0;
+        actual_values[1] =  lessThan ?  1 : 0;
+        
+        // Train network
+        float loss = network.train(in, actual_values, sqrd_diff, learning_rate);
+        total_loss += loss;
+    }
+
+    // Display average loss
+    const double avg_loss = (double)(total_loss/c);
+    std::cout << "Done Training: " << avg_loss << "\n\n";
+
+
+    // Test finished network
+    std::cout << "Start Testing: " << c << " datapoints\n";
     int err_c = 0;
     std::srand(std::time(0));
     for(int i = 0; i < c; i++){
@@ -58,40 +90,23 @@ int main(int argc, char **argv){
         in[1] = randomRange(-10, 10);
         const bool lessThan = in[0] < in[1];
 
-        // Propagate through network with inputs and store propagated values
-        const int node_count = network.getPropagateNodeCount();
-        float prev_nodes[node_count];
-        float post_nodes[node_count];
-        network.propagateStore(in, prev_nodes, post_nodes);
+        float out[OUTPUT_COUNT];
+        network.propagate(in, out);
         
         // Determine actual output values (1 for larger number, 0 for smaller number)
         float actual_values[OUTPUT_COUNT];
         actual_values[0] = !lessThan ?  1 : 0;
         actual_values[1] =  lessThan ?  1 : 0;
         
-        // Calculate loss gradient (derivative of squared difference)
-        float loss_grad[OUTPUT_COUNT];
-        loss_grad[0] = -2*(actual_values[0] - post_nodes[node_count-2]);
-        loss_grad[1] = -2*(actual_values[1] - post_nodes[node_count-1]);
-        
-        // Backpropagate to get the gradients for the weights and bias'
-        const int weight_count = network.getWeightCount();
-        const int bias_count = network.getBiasCount();
-        float w_grad[weight_count];
-        float b_grad[bias_count];
-        network.backpropagateStore(in, prev_nodes, post_nodes, loss_grad, w_grad, b_grad);
-
-        // Apply gradients
-        network.applyGradients(w_grad, b_grad, learning_rate);
-
         // Count the number of errors
-        if(lessThan != (post_nodes[node_count-2] < post_nodes[node_count-1]))
+        if(lessThan != (out[0] < out[1]))
             err_c++;
     }
 
     // Display number of errors
-    std::cout << "Done: " << err_c << " errors\n";
-    std::cout << (double)err_c/c*100 << "% wrong\n";
+    std::cout << "Done Testing: " << err_c << " errors\n";
+    std::cout << (double)err_c/c*100 << "% wrong\n\n";
+
     // Print network, if desired
-    //std::cout << network;
+    //std::cout << network << '\n';
 }

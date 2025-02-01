@@ -130,7 +130,7 @@ bool train(PPO ppo, const int max_itr, std::mt19937 rd_gen){
         // Run cartpole until done
         int t = 0;
         while (!env.isDone()  &&  ++t <= TARGET) {
-            PPO::Timestate& ts = this_ep.appendTimestate();
+            PPO::Episode::Timestate& ts = this_ep.appendTimestate();
             float aug_choice[POLICY_OUTPUT_LAYER_SIZE/2];
 
             // Get action from policy
