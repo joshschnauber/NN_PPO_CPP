@@ -1,3 +1,4 @@
 .vscode/
 *.exe
+mnist_test/MNIST_CSV/
 Environment.hpp
