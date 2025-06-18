@@ -16,26 +16,146 @@
 
 // Declaration
 namespace jai {
-    
-    /* Constant Tensor */
+    // Tensor Declarations
     template<size_t RANK>
-    class _Tensor {
-        int i;
-    };
-
+    class TensorInterface;
     template<size_t RANK>
-    class CTensor : _Tensor<RANK> {
-
-    };
-
-
+    class Tensor;
     template<size_t RANK>
-    class Tensor {
+    class CTensor;
+
+    /* Immutable Tensor Interface */
+    template<size_t RANK>
+    class TensorInterface {
         // Ensure that Tensor RANK cannot be 0 (must have 1 or more dimensions)
         static_assert(RANK > 0, "Tensor rank cannot be 0.");
 
+        /* Deleted Constructors */
         public:
+        TensorInterface() = delete;
+        TensorInterface( const TensorInterface& ) = delete;
+        TensorInterface( TensorInterface&& ) = delete;
+
+        /* Accessors */
+        public:
+
+        /* Defined for RANK=1 Tensors, this returns a mutable reference to the element at the given index in the first (and only) dimension.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        float& operator [] ( size_t index );
+        /* Defined for RANK=1 Tensors, this returns the element at the given index in the first (and only) dimension.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        const float& operator [] ( size_t index ) const;
+
+        /* Defined for RANK>1 Tensors, returns a mutable reference to the element at the given indexes.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
+        float& operator [] ( const size_t (&indexes)[RANK] );
+        /* Defined for RANK>1 Tensors, returns the element at the given indexes.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
+        const float& operator [] ( const size_t (&indexes)[RANK] ) const;
+
+        /* Defined for RANK>1 Tensors, this returns the Tensor of rank RANK-1 at the given index in the first dimension.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
+        const CTensor<RANK-1> operator [] ( size_t index ) const;
+
+        /* Binary Operations */
+        public:
+
+        /* Adds all of the elements in the other Tensor to all of the elements in this Tensor and returns the result.
+         * Both Tensors must be the same total size, but do not necessarily have to have the same dimensions.
+         * The dimensions of this Tensor are passed onto the result Tensor.
+         */
+        Tensor<RANK> operator + ( const Tensor<RANK>& other ) const;
+        /* Subtracts all of the elements in the other Tensor from all of the elements in this Tensor and returns the result.
+         * Both Tensors must be the same total size, but do not necessarily have to have the same dimensions.
+         * The dimensions of this Tensor are passed onto the result Tensor.
+         */
+        Tensor<RANK> operator - ( const Tensor<RANK>& other ) const;
+        /* Multiplies all of the elements in `tensor` by `scale` and returns the result.
+        */
+        friend Tensor<RANK> operator * ( const TensorInterface<RANK>& tensor, float scale );
+        /* Multiplies all of the elements in `tensor` by `scale` and returns the result.
+        */
+        friend Tensor<RANK> operator * ( float scale, const TensorInterface<RANK>& tensor );
+        /* Divides all of the elements in `tensor` by `scale` and returns the result.
+        */
+        friend Tensor<RANK> operator * ( const TensorInterface<RANK>& tensor, float scale );
+        /* Divides all of the elements in `tensor` by `scale` and returns the result.
+        */
+        friend Tensor<RANK> operator * ( float scale, const TensorInterface<RANK>& tensor );
+        /* Negates all of the elements in this Tensor and returns the result.
+         */
+        Tensor<RANK> operator - () const;
+        /* Returns this Tensor with a rank of RANK+1, where it's last dimension is of size 1.
+         * Useful for converting a Vector into a Matrix for matrix multiplication.
+         */
+        Tensor<RANK+1> rankUp() const;
+
+        /* Vector operations */
+        public:
+
+        /* Finds the magnitude of this Vector and returns the result.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        float mag() const;
+        /* Finds the squared magnitude of this Vector and returns the result.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        float squaredMag() const;
+        /* Takes the dot product of this Vector with the other Vector and returns the result.
+         * The two vectors must be the same size.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        float dot( const Tensor<1>& other ) const;
+        /* Takes the cross product of this Vector with the other Vector and returns the result.
+         * The two vectors must be 3 dimensional.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        Tensor<1> cross( const Tensor<1>& other ) const;
+
+        /* Matrix operations */
+        public:
+        
+        /* Finds the matrix multiplication of the other Matrix on this Matrix and returns the result.
+         * This Matrix must be of size (m x n) and the other Matrix must be of size (n x w)
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
+        Tensor<2> mul( const Tensor<2>& other ) const;
+
+        /* Getters */
+        public:
+
+        /* Returns the rank of the tensor (the number of dimensions).
+         * NOTE: This is NOT the matrix rank.
+         */
+        size_t rank() const;
+        /* Returns the size of the Tensor in the given dimension.
+         */
+        size_t size( size_t dimension ) const;
+        /* Returns the total size of the Tensor (the total number of elements).
+         */
+        size_t totalSize() const;
+
+        /* Prints out the Tensor as a string.
+         */
+        friend std::ostream& operator << ( std::ostream& fs, const TensorInterface<RANK>& t );
+
+        private:
+        size_t dimensions[RANK];
+        size_t total_size;
+        float* data;
+    };
+
+
+    /* Mutable Tensor */
+    template<size_t RANK>
+    class Tensor : public TensorInterface<RANK> {
         /* Constructors */
+        public:
 
         /* Constructs an empty Tensor with a size of 0 in each dimension.
          */
@@ -74,7 +194,7 @@ namespace jai {
 
         /* Copy constructor.
          */
-        Tensor( const Tensor<RANK>& other );
+        Tensor( const TensorInterface<RANK>& other );
         /* Move constructor.
          */
         Tensor( Tensor<RANK>&& other );
@@ -83,41 +203,13 @@ namespace jai {
         ~Tensor();
         /* Assignment operator. Ensures that memory is freed when existing object is overwritten.
          */
-        Tensor<RANK>& operator = ( const Tensor<RANK>& other );
+        Tensor<RANK>& operator = ( const TensorInterface<RANK>& other );
         /* Move assignment operator. Ensures that memory is freed when existing object is overwritten.
          */
         Tensor<RANK>& operator = ( Tensor<RANK>&& other );
-        
-        /* Disallow casting from CTensor to Tensor
-         */
-        Tensor( const CTensor<RANK>& other ) = delete;
 
-        /* Accessors */
-
-        /* Defined for RANK=1 Tensors, this returns a mutable reference to the element at the given index in the first (and only) dimension.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
-        float& operator [] ( size_t index );
-        /* Defined for RANK=1 Tensors, this returns the element at the given index in the first (and only) dimension.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
-        const float& operator [] ( size_t index ) const;
-
-        /* Defined for RANK>1 Tensors, returns a mutable reference to the element at the given indexes.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
-        float& operator [] ( const size_t (&indexes)[RANK] );
-        /* Defined for RANK>1 Tensors, returns the element at the given indexes.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
-        const float& operator [] ( const size_t (&indexes)[RANK] ) const;
-
-        /* Defined for RANK>1 Tensors, this returns the Tensor of rank RANK-1 at the given index in the first dimension.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
-        const Tensor<RANK-1> operator [] ( size_t index ) const;
-
-        /* General operations */
+        /* General mutators */
+        public:
         
         /* Adds all of the elements in the other Tensor to all of the elements in this Tensor.
          * The other Tensor must be the same total size as this Tensor, but does not necessarily have to have the same dimensions.
@@ -131,108 +223,37 @@ namespace jai {
          */
         void scaleBy( float scale );
 
-        /* Adds all of the elements in the other Tensor to all of the elements in this Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have the same dimensions.
-         * The dimensions of this Tensor are passed onto the result Tensor.
-         */
-        Tensor<RANK> operator + ( const Tensor<RANK>& other ) const;
-        /* Subtracts all of the elements in the other Tensor from all of the elements in this Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have the same dimensions.
-         * The dimensions of this Tensor are passed onto the result Tensor.
-         */
-        Tensor<RANK> operator - ( const Tensor<RANK>& other ) const;
-        /* Multiplies all of the elements in this Tensor with the given scale and returns the result.
-         */
-        Tensor<RANK> operator * ( float scale ) const;
-        /* Divides all of the elements in this Tensor with the given scale and returns the result.
-         */
-        Tensor<RANK> operator / ( float scale ) const;
-        /* Negates all of the elements in this Tensor and returns the result.
-         */
-        Tensor<RANK> operator - () const;
-        /* Returns this Tensor with a rank of RANK+1, where it's last dimension is of size 1.
-         * Useful for converting a Vector into a Matrix for matrix multiplication.
-         */
-        Tensor<RANK+1> rankUp() const;
-
-        /* Vector and Matrix operations */
-
-        /* Finds the magnitude of this Vector and returns the result.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
-        float mag() const;
-        /* Finds the squared magnitude of this Vector and returns the result.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
-        float squaredMag() const;
-        /* Takes the dot product of this Vector with the other Vector and returns the result.
-         * The two vectors must be the same size.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
-        float dot( const Tensor<1>& other ) const;
-        /* Takes the cross product of this Vector with the other Vector and returns the result.
-         * The two vectors must be 3 dimensional.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
-        Tensor<1> cross( const Tensor<1>& other ) const;
+        /* Matrix operations */
+        public:
 
         /* Transposes this Matrix.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
         void transpose();
-        /* Finds the matrix multiplication of the other Matrix on this Matrix and returns the result.
-         * This Matrix must be of size (m x n) and the other Matrix must be of size (n x w)
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
-        Tensor<2> mul( const Tensor<2>& other ) const;
-
-        /* Getters */
-
-        /* Returns the rank of the tensor (the number of dimensions).
-         * NOTE: This is NOT the matrix rank.
-         */
-        size_t rank() const;
-        /* Returns the size of the Tensor in the given dimension.
-         */
-        size_t size( size_t dimension ) const;
-        /* Returns the total size of the Tensor (the total number of elements).
-         */
-        size_t totalSize() const;
-
-        /* Prints out the Tensor as a string.
-         */
-        friend std::ostream& operator << ( std::ostream& fs, const Tensor<RANK>& t );
-
-
-        private:
-        size_t dimensions[RANK];
-        size_t total_size;
-        float* data;
     };
 
-    typedef Tensor<1> Vector;
-    typedef Tensor<2> Matrix;
 
-
-    /* Constant Copy Tensor */
+    /* Immutable Copy Tensor */
     template<size_t RANK>
-    class CTensor : public Tensor<RANK> {
-        public:
-        CTensor( size_t dimensions[RANK], size_t total_size, float* data ) {
-            this->dimensions = dimensions;
-            this->total_size = total_size;
-            this->data = data;
-        }
-        CTensor( const CTensor& other) {
-            
-        }
+    class CTensor : public TensorInterface<RANK> {
+        /* Constructors */
+        private:
+
+        CTensor( const size_t dimensions[RANK], size_t total_size, const float* data );
     };
+
+
+    // Vector and Matrix type definitions
+    typedef TensorInterface<1> Vector;
+    typedef TensorInterface<2> Matrix;
 }
 
 
 
 // Implementation
 namespace jai {
+
+    /* TensorInterface Implementation */
 
     template<size_t RANK>
     Tensor<RANK>::Tensor() {
@@ -334,7 +355,7 @@ namespace jai {
     }
     
     template<size_t RANK>
-    Tensor<RANK>::Tensor( const Tensor<RANK>& other ) {
+    Tensor<RANK>::Tensor( const TensorInterface<RANK>& other ) {
         // Copy dimensions
         for( int i = 0; i < RANK; ++i ) {
             this->dimensions[i] = other.dimensions[i];
@@ -366,7 +387,7 @@ namespace jai {
         delete this->data;
     }
     template<size_t RANK>
-    Tensor<RANK>& Tensor<RANK>::operator = ( const Tensor<RANK>& other ) {
+    Tensor<RANK>& Tensor<RANK>::operator = ( const TensorInterface<RANK>& other ) {
         // Free the previous data held in this Tensor.
         delete this->data;
 
@@ -402,18 +423,18 @@ namespace jai {
 
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
-    float& Tensor<RANK>::operator [] ( const size_t index ) {
+    float& TensorInterface<RANK>::operator [] ( const size_t index ) {
         return this->data[index];
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
-    const float& Tensor<RANK>::operator [] ( const size_t index ) const {
+    const float& TensorInterface<RANK>::operator [] ( const size_t index ) const {
         return this->data[index];
     }
     
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
-    float& Tensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
+    float& TensorInterface<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
         size_t index = 0;
         size_t inner_tensor_size = this->total_size;
         for( size_t i = 0; i < RANK; ++i ) {
@@ -424,7 +445,7 @@ namespace jai {
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
-    const float& Tensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
+    const float& TensorInterface<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
         size_t index = 0;
         size_t inner_tensor_total_size = this->total_size;
         for( size_t i = 0; i < RANK; ++i ) {
@@ -436,15 +457,12 @@ namespace jai {
 
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
-    const Tensor<RANK-1> Tensor<RANK>::operator [] ( const size_t index ) const {
-        // Create inner Tensor
-        Tensor<RANK-1> inner_tensor(this->dimensions + 1);
+    const CTensor<RANK-1> TensorInterface<RANK>::operator [] ( const size_t index ) const {
+        const size_t* dims = this->dimensions + 1;
         const size_t inner_tensor_total_size = this->total_size / this->dimensions[0];
-        // Set values in inner Tensor
-        for( int i = 0; i < inner_tensor_total_size; ++i ) {
-            inner_tensor.data[i] = this->data[inner_tensor_total_size*index + i];
-        }
-        return inner_tensor;
+        const float* inner_data = this->data + inner_tensor_total_size*index;
+
+        return CTensor<RANK-1>(dims, inner_tensor_total_size, inner_data);
     }
     
 
@@ -471,7 +489,7 @@ namespace jai {
     }
 
     template<size_t RANK>
-    Tensor<RANK> Tensor<RANK>::operator + ( const Tensor<RANK>& other ) const {
+    Tensor<RANK> TensorInterface<RANK>::operator + ( const Tensor<RANK>& other ) const {
         // Copy this to new Tensor and addTo other to it
         Tensor<RANK> result(*this);
         result.addTo(other);
@@ -479,7 +497,7 @@ namespace jai {
         return result;
     }
     template<size_t RANK>
-    Tensor<RANK> Tensor<RANK>::operator - ( const Tensor<RANK>& other ) const {
+    Tensor<RANK> TensorInterface<RANK>::operator - ( const Tensor<RANK>& other ) const {
         // Copy this to new Tensor and subtract other from it
         Tensor<RANK> result(*this);
         result.subFrom(other);
@@ -487,23 +505,39 @@ namespace jai {
         return result;
     }
     template<size_t RANK>
-    Tensor<RANK> Tensor<RANK>::operator * ( float scale ) const {
+    Tensor<RANK> operator * ( const TensorInterface<RANK>& tensor, const float scale ) {
         // Copy this to new Tensor and multiply it by scale
-        Tensor<RANK> result(*this);
+        Tensor<RANK> result(tensor);
         result.mulBy(scale);
         // Return result Tensor
         return result;
     }
     template<size_t RANK>
-    Tensor<RANK> Tensor<RANK>::operator / ( float scale ) const {
+    Tensor<RANK> operator * ( const float scale, const TensorInterface<RANK>& tensor ) {
+        // Copy this to new Tensor and multiply it by scale
+        Tensor<RANK> result(tensor);
+        result.mulBy(scale);
+        // Return result Tensor
+        return result;
+    }
+    template<size_t RANK>
+    Tensor<RANK> operator / ( const TensorInterface<RANK>& tensor, const float scale ) {
         // Copy this to new Tensor and divide it by scale
-        Tensor<RANK> result(*this);
+        Tensor<RANK> result(tensor);
         result.scaleBy(1.0f / scale);
         // Return result Tensor
         return result;
     }
     template<size_t RANK>
-    Tensor<RANK> Tensor<RANK>::operator - () const {
+    Tensor<RANK> operator / ( const float scale, const TensorInterface<RANK>& tensor ) {
+        // Copy this to new Tensor and divide it by scale
+        Tensor<RANK> result(tensor);
+        result.scaleBy(1.0f / scale);
+        // Return result Tensor
+        return result;
+    }
+    template<size_t RANK>
+    Tensor<RANK> TensorInterface<RANK>::operator - () const {
         // Copy this to new Tensor
         Tensor<RANK> result(*this);
         // Negate all elements in result and return it
@@ -514,7 +548,7 @@ namespace jai {
         return result;
     }
     template<size_t RANK>
-    Tensor<RANK+1> Tensor<RANK>::rankUp() const {
+    Tensor<RANK+1> TensorInterface<RANK>::rankUp() const {
         // Create new Tensor with same dimensions as this Tensor
         size_t new_dimensions[RANK+1];
         for( int i = 0; i < RANK; ++i ) {
@@ -533,12 +567,12 @@ namespace jai {
 
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
-    float Tensor<RANK>::mag() const {
+    float TensorInterface<RANK>::mag() const {
         return sqrt(this->squaredMag());
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
-    float Tensor<RANK>::squaredMag() const {
+    float TensorInterface<RANK>::squaredMag() const {
         float sqrd_sum = 0;
         for( int i = 0; i < this->dimensions[0]; ++i ) {
             sqrd_sum += data[i] * data[i];
@@ -547,7 +581,7 @@ namespace jai {
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
-    float Tensor<RANK>::dot( const Tensor<1>& other ) const {
+    float TensorInterface<RANK>::dot( const Tensor<1>& other ) const {
         float sum = 0;
         for( int i = 0; i < this->dimensions[0]; ++i ) {
             sum += this[i] * other[i]
@@ -556,7 +590,7 @@ namespace jai {
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
-    Tensor<1> Tensor<RANK>::cross( const Tensor<1>& other ) const {
+    Tensor<1> TensorInterface<RANK>::cross( const Tensor<1>& other ) const {
         Tensor<1> result(3);
         result[0] = this[1] * other[2] - this[2] * other[1];
         result[1] = this[2] * other[0] - this[0] * other[2];
@@ -576,7 +610,7 @@ namespace jai {
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 2), int>::type>
-    Tensor<2> Tensor<RANK>::mul( const Tensor<2>& other ) const {
+    Tensor<2> TensorInterface<RANK>::mul( const Tensor<2>& other ) const {
         // Create result Tensor
         Tensor<2> result({this->dimensions[0], other.dimensions[1]});
         // Perform matrix multiplication
@@ -593,15 +627,15 @@ namespace jai {
     }
 
     template<size_t RANK>
-    size_t Tensor<RANK>::rank() const {
+    size_t TensorInterface<RANK>::rank() const {
         return RANK;
     }
     template<size_t RANK>
-    size_t Tensor<RANK>::size( const size_t dimension ) const {
+    size_t TensorInterface<RANK>::size( const size_t dimension ) const {
         return this->dimensions[dimension];
     }
     template<size_t RANK>
-    size_t Tensor<RANK>::totalSize() const {
+    size_t TensorInterface<RANK>::totalSize() const {
         return this->total_size;
     }
 
@@ -620,6 +654,15 @@ namespace jai {
         return fs;
     }
 
+
+    /* CTensor Implementation */
+
+    template<size_t RANK>
+    CTensor<RANK>::CTensor( const size_t dimensions[RANK], const size_t total_size, const float* data ) {
+        this->dimensions = dimensions;
+        this->total_size = total_size;
+        this->data = data;
+    }
 }
 
 
@@ -641,6 +684,7 @@ int main() {
     //ct.scaleBy(1);
     //jai::Tensor<2> t = ct;
     jai::Tensor<2> t = t3[0];
+    jai::Tensor<3> t32 = 10 * t3;
 }
 
 
