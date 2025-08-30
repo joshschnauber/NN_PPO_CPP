@@ -1,6 +1,9 @@
+/* NeuralNetwork.hpp */
+
 #ifndef NEURAL_NETWORK_HPP
 #define NEURAL_NETWORK_HPP
 
+#include "Tensor.hpp"
 #include <cmath>
 #include <vector>
 #include <functional>
@@ -13,12 +16,15 @@ const float N_INFINITY = 1.0f/0.0f;
 
 
 
-// Declaration
+/* Declaration */
 namespace jai {
-    // Struct that stores an activation function and it's derivative
-    struct Activation {
-        float (*fn) (const float);
-        float (*fn_d) (const float);
+    /**
+     * This represents an activation to be applied in a neural network.
+     * It contains a function for the activation and its derivative.
+     */
+    class Activation {
+        float fn( const float in ) const; 
+        float fn_D( const float in ) const; 
     };
     
     // Activation functions
@@ -168,11 +174,11 @@ namespace jai {
         std::vector<float> propagate_vals_cache;
         std::vector<float> gradient_vals_cache;
     };
+}
 
-} // end jai
 
 
-// Implementation
+/* Implementation */
 namespace jai {
 
     // ACTIVATIONS
@@ -878,8 +884,7 @@ namespace jai {
         weights = std::vector<float>(weight_count, 0);
         bias = std::vector<float>(bias_count, 0);
     }
-
-} // end jai
+}
 
 
 

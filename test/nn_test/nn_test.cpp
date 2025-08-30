@@ -1,13 +1,14 @@
-// Simple test of NeuralNetwork.hpp to train a network to determine which of two numbers is larger.
+/* nn_test.cpp */
 
 /*
- * Compile and run:
- * g++ nn.cpp -o nn.exe
- * nn.exe 100 2 3 0.01
+ * Simple test of NeuralNetwork.hpp to train a network to determine which of two numbers is larger.
+ *
+ * g++ nn_test.cpp -o nn_test.exe
+ * nn_test.exe 100 2 3 0.01
  */
 
 
-#include "../NeuralNetwork.hpp"
+#include "../../NeuralNetwork.hpp"
 #include <iostream>
 #include <random>
 #include <ctime>
