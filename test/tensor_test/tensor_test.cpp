@@ -6,75 +6,7 @@
  */
 
 #include "../../Tensor.hpp"
-
-#define TFS "\033[1;31m"
-#define TFE "\033[0m"
-#define TSS "\033[1;32m"
-#define TSE "\033[0m"
-#define START_TEST( test_name ) \
-    { \
-        std::cout << "Started Tests: " << test_name << "\n"; \
-        int total_tests = 0; \
-        int failed_tests = 0;
-#define END_TEST \
-        std::cout << "Finished Tests\n"; \
-        if( failed_tests > 0 ) { \
-            std::cerr << TFS << failed_tests << " out of " << total_tests << " tests failed" << TFS << "\n"; \
-        } else { \
-            std::cout << TSS << "All tests succeeded" << TSE << "\n"; \
-        } \
-    }
-#define test_equals( _A, _B ) \
-    total_tests++; \
-    try { \
-        const auto A = _A; \
-        const auto B = _B; \
-        if( A != B ) { \
-            std::cerr << TFS << "Test Equals failed at line " << __LINE__ << "; A=" << std::to_string(A) << " B=" << std::to_string(B) << TFE << "\n"; \
-            failed_tests++; \
-        } \
-    } catch(...) { \
-        std::cerr << TFS << "Test Equals threw exception at line " << __LINE__ << TFE << "\n"; \
-        failed_tests++; \
-    }
-#define test_float_equals( _A, _B ) \
-    total_tests++; \
-    try { \
-        const float A = _A; \
-        const float B = _B; \
-        if( A - 1e-6 > B || B > A + 1e-6 ) { \
-            std::cerr << TFS << "Test Float Equals failed at line " << __LINE__ << "; A=" << A << " B=" << B << TFE << "\n"; \
-            failed_tests++; \
-        } \
-    } catch(...) { \
-        std::cerr << TFS << "Test Equals threw exception at line " << __LINE__ << TFE << "\n"; \
-        failed_tests++; \
-    }
-#define test_true( _Expression ) \
-    total_tests++; \
-    try { \
-        if( !(_Expression) ) { \
-            std::cerr << TFS << "Test True failed at line " << __LINE__ << TFE << "\n"; \
-            failed_tests++; \
-        } \
-    } catch(...) { \
-        std::cerr << "Test True threw exception at line " << __LINE__ << TFE << "\n"; \
-        failed_tests++; \
-    }
-#define test_not_throws( _Code_Block ) \
-    total_tests++; \
-    try { \
-        _Code_Block; \
-    } catch(...) { \
-        std::cerr << TFS << "Assert Not Throws failed at line " << __LINE__ << TFE << "\n"; \
-        failed_tests++; \
-    }
-#define test_throws( _Code_Block ) \
-    total_tests++; \
-    try { \
-        _Code_Block; std::cerr << TFS << "Assert Throws failed at line " << __LINE__ << TFE << "\n"; \
-        failed_tests++; \
-    } catch(...) { }
+#include "../unit_test.hpp"
 
 
 /**
@@ -517,7 +449,47 @@ int main() {
     test_true( t1_25_1 != t1_25_4 );
 
 
+    /* 26. Test RANK=1 transform() */
+    std::cout << "Starting test: RANK=1 transform()\n";
+    jai::Tensor<1> t1_26 = { 261, 262, 263, 264, 265 };
+
+    t1_26.transform([&total_tests, &failed_tests, &t1_26](const size_t index, const float value) {
+        test_equals(t1_26[index], value);
+
+        return value * 2;
+    });
+
+    test_equals( t1_26[0], 522);
+    test_equals( t1_26[1], 524);
+    test_equals( t1_26[2], 526);
+    test_equals( t1_26[3], 528);
+    test_equals( t1_26[4], 530);
+
+
+    /* 27. Test RANK=2 transform() */
+    std::cout << "Starting test: RANK=2 transform()\n";
+    jai::Tensor<2> t2_27 = {{271, 272, 273}, {274, 275, 276}};
+
+    t2_27.transform([&total_tests, &failed_tests, &t2_27](const size_t indexes[2], const float value) {
+        size_t _indexes[2] = {indexes[0], indexes[1]}; // For some reason `indexes` cannot be used directly
+        test_equals(t2_27[_indexes], value);
+
+        return value * 2;
+    });
+
+    test_equals( (t2_27[{0, 0}]), 542);
+    test_equals( (t2_27[{0, 1}]), 544);
+    test_equals( (t2_27[{0, 2}]), 546);
+    test_equals( (t2_27[{1, 0}]), 548);
+    test_equals( (t2_27[{1, 1}]), 550);
+    test_equals( (t2_27[{1, 2}]), 552);
+
+
     /* TODO: Test cases for other Vector and Matrix specific operations */
+    size_t dims[2] = {2, 2};
+    jai::Tensor<2> _t2_1(dims);
+    size_t indexes[2] = {1, 1};
+    _t2_1[indexes];
 
 
     END_TEST
