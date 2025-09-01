@@ -6,13 +6,14 @@
 #include "Tensor.hpp"
 #include <cmath>
 #include <vector>
+#include <memory>
 #include <functional>
 #include <iostream>
 #include <algorithm>
 #include <random>
 
-const float N_EPSILON = 1e-7f;
-const float N_INFINITY = 1.0f/0.0f;
+const float NN_EPSILON = 1e-7f;
+const float NN_INFINITY = 1.0f/0.0f;
 
 
 
@@ -21,29 +22,242 @@ namespace jai {
     /**
      * This represents an activation to be applied in a neural network.
      * It contains a function for the activation and its derivative.
+     * This is an abstract class intended to be overridden for specific functionality
      */
     class Activation {
-        float fn( const float in ) const; 
-        float fn_D( const float in ) const; 
+        public:
+        /**
+         * The activation function on the value `x`.
+         */
+        virtual float fn( const float x ) const = 0;
+        /**
+         * The derivative of the activation function on the value `x`.
+         */
+        virtual float fn_D( const float x ) const = 0;
+        /**
+         * Creates a `std::unique_ptr` that manages a new copy of `this` activation.
+         */
+        virtual std::unique_ptr<Activation> copy() const = 0;
+        /**
+         * Verifies that `fn_D` is the derivative of `fn`, by testing values 
+         * between `min` and `max`, with the given `step`.
+         * Returns true if it is, and false if not.
+         */
+        bool verify( const float min = -10.0f, const float max = 10.0f, const float step = 0.5f ) const;
     };
-    
-    // Activation functions
-    extern const Activation LINEAR;
-    extern const Activation RELU;
-    extern const Activation ELU;
-    extern const Activation SOFTPLUS;
-    extern const Activation SIGMOID;        // Sigmoid from 0 to 1
-    extern const Activation AUG_SIGMOID;    // Sigmoid from -1 to 1
-    extern const Activation TANH;
-    extern const Activation EXP;
-    extern const Activation POW_1P1;        // Exponential function with base 1.1
+    /**
+     * Linear activation
+     */
+    class LinearActivation : public Activation {
+        public:
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * ReLU activation
+     */
+    class ReLUActivation : public Activation {
+        public:
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * ELU activation
+     */
+    class ELUActivation : public Activation {
+        public:
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * Softplus activation
+     */
+    class SoftplusActivation : public Activation {
+        public:
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * Sigmoid activation.
+     */
+    class SigmoidActivation : public Activation {
+        public:
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * Augmented sigmoid activation with custom lower and upper bounds.
+     */
+    class AugSigmoidActivation : public Activation {
+        public:
+        /**
+         * Constructs a sigmoid activation with a lower bound `l` and
+         * upper bound `u`.
+         */
+        AugSigmoidActivation( const float l, const float u );
+
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+
+        private:
+        float lower_bound;
+        float range;
+    };
+    /**
+     * Tanh activation
+     */
+    class TanhActivation : public Activation {
+        public:
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * Exponential function activation.
+     * Represents an exponential function of the form y = e^x.
+     */
+    class ExpActivation : public Activation {
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+    };
+    /**
+     * Augmented exponential function activation with custom base.
+     * Represents an exponential function of the form y = b^x.
+     */
+    class AugExpActivation : public Activation {
+        public:
+        /**
+         * Constructs a exponential function activation with base `b`.
+         */
+        AugExpActivation( const float b );
+
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+
+        private:
+        float base;
+        float ln_of_base;
+    };
+    /**
+     * Power function activation
+     * Represents a power function of the form y = x^p.
+     */
+    class PowerActivation : public Activation {
+        public:
+        /**
+         * Constructs a power function activation with the power `p`.
+         */
+        PowerActivation( const float p );
+
+        float fn( const float x ) const override;
+        float fn_D( const float x ) const override;
+        std::unique_ptr<Activation> copy() const override;
+
+        private:
+        float power;
+    };
+
+    /**
+     * This represents an activation to be applied to an entire layer in a neural network.
+     * It contains a function for the activation and its derivative.
+     * This is an abstract class intended to be overridden for specific functionality.
+     */
+    class LayerActivation {
+        public:
+        /**
+         * The activation function on Vector `x`.
+         * Places the result in Vector `y`.
+         */
+        virtual void fn( const Vector& x, Vector& y ) const = 0;
+        /**
+         * The derivative of the activation function on Vector `x` using the .
+         * Places the result in Vector `y`.
+         */
+        virtual void fn_D( const Vector& x, const Vector& ___, Vector& y ) const = 0;
+        /**
+         * Creates a `std::unique_ptr` that manages a new copy of `this` layer activation.
+         */
+        virtual std::unique_ptr<LayerActivation> copy() const = 0;
+        /**
+         * Checks if the `layer_size` is valid for this layer activation.
+         */
+        virtual bool isValidLayerSize( size_t layer_size ) const = 0;
+        /**
+         * Verifies that `fn_D` is the derivative of `fn`.
+         * Returns true if it is, and false if not.
+         */
+        bool verify() const;
+    };
+    /**
+     * Uniform layer activation.
+     * Applies the same independent activation to each node in the layer.
+     */
+    class UniformLayerActivation : public LayerActivation {
+        public:
+        /**
+         * Constructs a uniform layer activation using `activation` for each node.
+         */
+        UniformLayerActivation( const Activation& activation );
+
+        void fn( const Vector& x, Vector& y ) const override;
+        void fn_D( const Vector& x, const Vector& ___, Vector& y ) const override;
+        std::unique_ptr<LayerActivation> copy() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+
+        private:
+        std::unique_ptr<Activation> activation;
+    };
+    /**
+     * Non Uniform layer activation.
+     * Applies a different independent activation to each node in the layer.
+     */
+    class NonUniformLayerActivation : public LayerActivation {
+        public:
+        /**
+         * Constructs a uniform layer activation using `activation` for each node.
+         */
+        NonUniformLayerActivation( const std::vector<std::unique_ptr<Activation>>& activations );
+
+        void fn( const Vector& x, Vector& y ) const override;
+        void fn_D( const Vector& x, const Vector& ___, Vector& y ) const override;
+        std::unique_ptr<LayerActivation> copy() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+ 
+        private:
+        std::vector<std::unique_ptr<Activation>> activations;
+    };
+    /**
+     * Softmax layer activation.
+     */
+    class SoftmaxLayerActivation;
+    /**
+     * Split softmax layer activation.
+     * Consists of multiple independent softmaxes across the layer's nodes.
+     */
+    class SplitSoftmaxLayerActivation;
+    /**
+     * Mixed softmax layer activation.
+     * Consists of multiple independent softmax layers, as well as different 
+     * independent activations for the nodes at the bottom.
+     */
+    class MixedSoftmaxLayerActivation;
+
 
     // Struct the stores the activations for an entire layer
-    struct LayerActivation {
-        size_t layer_size;
-        std::function<void(const float*, float*)> fn;
-        std::function<void(const float*, const float*, float*)> fn_d;
-    };
+    // struct LayerActivation {
+    //     public:
+    //     size_t layer_size;
+    //     std::function<void(const float*, float*)> fn;
+    //     std::function<void(const float*, const float*, float*)> fn_d;
+    // };
 
     // Output activation functions
     extern const LayerActivation ACTIVATION( const Activation& activation, const size_t layer_size );
@@ -84,9 +298,9 @@ namespace jai {
         // Constructors
         NeuralNetwork();
         NeuralNetwork(  size_t input_layer_size, size_t output_layer_size,
-                        const Activation& hidden_activation = RELU, const LayerActivation& output_activations = {0, nullptr, nullptr} );
+                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_activations = {0, nullptr, nullptr} );
         NeuralNetwork(  size_t input_layer_size, size_t output_layer_size, size_t hidden_layer_size, size_t hidden_layer_count,
-                        const Activation& hidden_activation = RELU, const LayerActivation& output_activations = {0, nullptr, nullptr} );
+                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_activations = {0, nullptr, nullptr} );
 
         // Sets random weights between min and max
         void randomInit(const float min = -1, const float max = 1);
@@ -168,7 +382,7 @@ namespace jai {
         size_t hidden_layer_count;
         std::vector<float> weights;
         std::vector<float> bias;
-        Activation hidden_activation;
+        std::unique_ptr<Activation> hidden_activation;
         LayerActivation output_activations;
         // Cached values from propagateStore() or backpropagateStore()
         std::vector<float> propagate_vals_cache;
@@ -180,84 +394,202 @@ namespace jai {
 
 /* Implementation */
 namespace jai {
+    /* Activations */
 
-    // ACTIVATIONS
-    constexpr Activation LINEAR = {
-        [](const float v){
-            return v;
-        },
-        [](const float v){
-            return 1.0f;
+    bool Activation::verify( const float min, const float max, const float step ) const {
+        // The distance from x used when estimating the slope between x and another point
+        const float poll_distance = 1e-2;
+        // The tolerance for how far the predicted and expected values can be
+        const float tol = 1e-3;
+
+        float x = min;
+        while( x <= max ) {
+            // Get actual values from functions
+            const float y = this->fn(x);
+            const float y_D = this->fn_D(x);
+
+            // Check the values of y around x
+            const float x_n = x - poll_distance;
+            const float x_p = x + poll_distance;
+            const float y_n = this->fn(x_n);
+            const float y_p = this->fn(x_p);
+
+            // Calculate average slope
+            const float predicted_y_D_n = (y - y_n) / (poll_distance);
+            const float predicted_y_D_p = (y_p - y) / (poll_distance);
+            const float predicted_y_D = (predicted_y_D_n + predicted_y_D_p) / 2.0f;
+
+            // Return false if the predicted and actual values are too far
+            if( predicted_y_D - tol > y_D || predicted_y_D + tol < y_D) {
+                return false;
+            }
+
+            x += step;
         }
-    };
-    constexpr Activation RELU = {
-        [](const float v){
-            return std::max(0.0f, v);
-        },
-        [](const float v){
-            return (float) !std::signbit(v);
-        }
-    };
-    constexpr Activation ELU = {
-        [](const float v){
-            return ( v >=0 ) ?  v : std::exp(v) - 1;
-        },
-        [](const float v){
-            return ( v >=0 ) ?  1.0f : std::exp(v);
-        }
-    };
-    constexpr Activation SOFTPLUS = {
-        [](const float v){
-            return std::log( 1 + std::exp(v) );
-        },
-        [](const float v){
-            return 1 / (1 + std::exp(-v));
-        }
-    };
-    constexpr Activation SIGMOID = {
-        [](const float v){
-            return 1.0f/(1+std::exp(-v));
-        },
-        [](const float v){
-            const float sigmoid = 1.0f/(1+std::exp(-v));
-            return sigmoid*(1-sigmoid);
-        }
-    };
-    constexpr Activation AUG_SIGMOID = {
-        [](const float v){
-            return 2.0f/(1+std::exp(-v)) - 1.0f;
-        },
-        [](const float v){
-            const float aug_sigmoid = 2.0f/(1+std::exp(-v)) - 1.0f;
-            return (aug_sigmoid+1)*(1-aug_sigmoid)/2;
-        }
-    };
-    constexpr Activation TANH = {
-        [](const float v){
-            return std::tanh(v);
-        },
-        [](const float v){
-            const float tanh = std::tanh(v);
-            return 1 - tanh*tanh;
-        }
-    };
-    constexpr Activation EXP = {
-        [](const float v){
-            return std::exp(v);
-        },
-        [](const float v){
-            return std::exp(v);
-        }
-    };
-    constexpr Activation POW_1P1 = {
-        [](const float v){
-            return std::pow(1.1f, v);
-        },
-        [](const float v){
-            return 0.09531018f * std::pow(1.1f, v);
-        }
-    };
         
+        return true;
+    }
+
+    float LinearActivation::fn( const float x ) const {
+        return x;
+    }
+    float LinearActivation::fn_D( const float x ) const {
+        return 1.0f;
+    }
+    std::unique_ptr<Activation> LinearActivation::copy() const {
+        return std::make_unique<Activation>(new LinearActivation(*this));
+    }
+
+    float ReLUActivation::fn( const float x ) const {
+        return std::max(0.0f, x);
+    }
+    float ReLUActivation::fn_D( const float x ) const {
+        return (float) !std::signbit(x);
+    }
+    std::unique_ptr<Activation> ReLUActivation::copy() const {
+        return std::make_unique<Activation>(new ReLUActivation(*this));
+    }
+
+    float ELUActivation::fn( const float x ) const {
+        return ( x >=0 ) ?  x : std::exp(x) - 1;
+    }
+    float ELUActivation::fn_D( const float x ) const {
+        return ( x >=0 ) ?  1.0f : std::exp(x);
+    }
+    std::unique_ptr<Activation> ELUActivation::copy() const {
+        return std::make_unique<Activation>(new ELUActivation(*this));
+    }
+
+    float SoftplusActivation::fn( const float x ) const {
+        return std::log( 1 + std::exp(x) );
+    }
+    float SoftplusActivation::fn_D( const float x ) const {
+        return 1 / (1 + std::exp(-x));
+    }
+    std::unique_ptr<Activation> SoftplusActivation::copy() const {
+        return std::make_unique<Activation>(new SoftplusActivation(*this));
+    }
+
+    float SigmoidActivation::fn( const float x ) const {
+        return 1.0f / (1 + std::exp(-x));
+    }
+    float SigmoidActivation::fn_D( const float x ) const {
+        const float sigmoid = 1.0f / (1 + std::exp(-x));
+        return sigmoid * (1 - sigmoid);
+    }
+    std::unique_ptr<Activation> SigmoidActivation::copy() const {
+        return std::make_unique<Activation>(new SigmoidActivation(*this));
+    }
+
+    AugSigmoidActivation::AugSigmoidActivation( const float l, const float u ) {
+        this->lower_bound = l;
+        this->range = u - l;
+    }
+    float AugSigmoidActivation::fn( const float x ) const {
+        return this->range / (1 + std::exp(-x)) + this->lower_bound;
+    }
+    float AugSigmoidActivation::fn_D( const float x ) const {
+        const float sigmoid = 1.0f / (1 + std::exp(-x));
+        return this->range * sigmoid * (1 - sigmoid);
+    }
+    std::unique_ptr<Activation> AugSigmoidActivation::copy() const {
+        return std::make_unique<Activation>(new AugSigmoidActivation(*this));
+    }
+
+    float TanhActivation::fn( const float x ) const {
+        return std::tanh(x);
+    }
+    float TanhActivation::fn_D( const float x ) const {
+        const float tanh = std::tanh(x);
+        return 1 - tanh*tanh;
+    }
+    std::unique_ptr<Activation> TanhActivation::copy() const {
+        return std::make_unique<Activation>(new TanhActivation(*this));
+    }
+
+    float ExpActivation::fn( const float x ) const {
+        return std::exp(x);
+    }
+    float ExpActivation::fn_D( const float x ) const {
+        return std::exp(x);
+    }
+    std::unique_ptr<Activation> ExpActivation::copy() const {
+        return std::make_unique<Activation>(new ExpActivation(*this));
+    }
+
+    AugExpActivation::AugExpActivation( const float b ) {
+        this->base = b;
+        this->ln_of_base = std::log(b);
+    }
+    float AugExpActivation::fn( const float x ) const {
+        return std::pow(this->base, x);
+    }
+    float AugExpActivation::fn_D( const float x ) const {
+        return this->ln_of_base * std::pow(this->base, x);
+    }
+    std::unique_ptr<Activation> AugExpActivation::copy() const {
+        return std::make_unique<Activation>(new AugExpActivation(*this));
+    }
+
+    PowerActivation::PowerActivation( const float p ) {
+        this->power = p;
+    }
+    float PowerActivation::fn( const float x ) const {
+        return std::pow(x, this->power);
+    }
+    float PowerActivation::fn_D( const float x ) const {
+        return this->power * std::pow(x, this->power-1);
+    }
+    std::unique_ptr<Activation> PowerActivation::copy() const {
+        return std::make_unique<Activation>(new PowerActivation(*this));
+    }
+        
+    bool LayerActivation::verify() const {
+
+    }
+
+    UniformLayerActivation::UniformLayerActivation( const Activation& activation )
+        : activation(activation.copy()) { }
+    void UniformLayerActivation::fn( const Vector& x, Vector& y ) const {
+        for( size_t i = 0; i < x.size(); ++i ) {
+            y[i] = this->activation.get()->fn(x[i]);
+        }  
+    }
+    void UniformLayerActivation::fn_D( const Vector& x, const Vector& ___, Vector& y ) const {
+        for( size_t i = 0; i < x.size(); ++i ) {
+            y[i] = this->activation.get()->fn_D(x[i]) * ___[i];
+        }
+    }
+    std::unique_ptr<LayerActivation> UniformLayerActivation::copy() const {
+        return std::make_unique<LayerActivation>(
+            new UniformLayerActivation(*this->activation.get())
+        );
+    }
+    bool UniformLayerActivation::isValidLayerSize( size_t layer_size ) const {
+        return true;
+    }
+
+    NonUniformLayerActivation::NonUniformLayerActivation( const std::vector<std::unique_ptr<Activation>>& activations )
+        : activations(activations) { }
+    void NonUniformLayerActivation::fn( const Vector& x, Vector& y ) const {
+        for( size_t i = 0; i < x.size(); ++i ) {
+            y[i] = this->activations[i].get()->fn(x[i]);
+        }  
+    }
+    void NonUniformLayerActivation::fn_D( const Vector& x, const Vector& ___, Vector& y ) const {
+        for( size_t i = 0; i < x.size(); ++i ) {
+            y[i] = this->activations[i].get()->fn_D(x[i]) * ___[i];
+        }
+    }
+    std::unique_ptr<LayerActivation> NonUniformLayerActivation::copy() const {
+        return std::make_unique<LayerActivation>(
+            new NonUniformLayerActivation(this->activations)
+        );
+    }
+    bool NonUniformLayerActivation::isValidLayerSize( size_t layer_size ) const {
+        return layer_size == this->activations.size();
+    }
+
     // OUTPUT ACTIVATIONS
     const LayerActivation ACTIVATION(const Activation& activation, const size_t layer_size) {
         return {

@@ -76,7 +76,9 @@ namespace jai {
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         const float& operator [] ( const size_t (&indexes)[RANK] ) const;
-        /* Defined for RANK>1 Tensors, this returns a mutable reference to the element at the given `indexes`.
+        /**
+         * Defined for RANK>1 Tensors, this returns a mutable reference to the element
+         * at the given `indexes`.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         float& operator [] ( const size_t (&indexes)[RANK] );
@@ -176,6 +178,26 @@ namespace jai {
         /* Multiples all of the elements in this Tensor with the given scale.
          */
         void scaleBy( float scale );
+        /**
+         * Defined for RANK=1 Tensors, this transforms each element in `this`
+         * Tensor using the given `transform_function`.
+         * The first argument of the function is the index of the value being transformed
+         * (of type `const size_t`), the second argument is the value itself
+         * (of type `const float`), and the function should return a `float`.
+         * The value returned by the function is the new value set at the index.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0, typename Func>
+        void transform( Func transform_function );
+        /**
+         * Defined for RANK>1 Tensors, this transforms each element in `this`
+         * Tensor using the given `transform_function`.
+         * The first argument of the function is the indexes of the value being transformed
+         * (of type `const size_t[RANK]`), the second argument is the value itself
+         * (of type `const float`), and the function should return a `float`.
+         * The value returned by the function is the new value set at the indexes.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0, typename Func>
+        void transform( Func transform_function );
 
         /* Vector operations */
         public:
@@ -584,6 +606,47 @@ namespace jai {
         // Multiply by scale
         for( size_t i = 0; i < this->total_size; ++i ) {
             this->data[i] *= scale;
+        }
+    }
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 1), int>::type, typename Func>
+    void BaseTensor<RANK>::transform( Func transform_function ) {
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            (*this)[i] = transform_function(i, (*this)[i]);
+        }
+    }
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R > 1), int>::type, typename Func>
+    void BaseTensor<RANK>::transform( Func transform_function ) {
+        // Start the indexes at 0
+        size_t indexes[RANK];
+        for( size_t i = 0; i < RANK; ++i ) {
+            indexes[i] = 0;
+        }
+
+        while( true ) {
+            // Transform the current index
+            (*this)[indexes] = transform_function(indexes, (*this)[indexes]);
+
+            // Step the index forward
+            indexes[RANK - 1]++;
+
+            // If the index in any dimension is at the max, increment the previous dimension
+            size_t dimension = RANK - 1;
+            while( indexes[dimension] >= this->dimensions[dimension] ) {
+                // Stop incrementing previous dimensions when we reach the first one
+                if( dimension == 0 ) {
+                    // If the first dimension has reached its maximum, iteration is finished
+                    if( indexes[0] == this->dimensions[0] ) {
+                        return;
+                    }
+                    break;
+                }
+
+                indexes[dimension] = 0;
+                indexes[dimension - 1] ++;
+                dimension--;
+            }
         }
     }
 
