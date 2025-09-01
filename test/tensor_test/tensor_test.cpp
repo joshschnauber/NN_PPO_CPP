@@ -486,10 +486,6 @@ int main() {
 
 
     /* TODO: Test cases for other Vector and Matrix specific operations */
-    size_t dims[2] = {2, 2};
-    jai::Tensor<2> _t2_1(dims);
-    size_t indexes[2] = {1, 1};
-    _t2_1[indexes];
 
 
     END_TEST

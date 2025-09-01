@@ -202,20 +202,24 @@ namespace jai {
         /* Vector operations */
         public:
 
-        /* Finds the magnitude of this Vector and returns the result.
+        /**
+         * Finds the magnitude of this Vector and returns the result.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float mag() const;
-        /* Finds the squared magnitude of this Vector and returns the result.
+        /** 
+         * Finds the squared magnitude of this Vector and returns the result.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float squaredMag() const;
-        /* Takes the dot product of this Vector with the other Vector and returns the result.
+        /** 
+         * Takes the dot product of this Vector with the other Vector and returns the result.
          * The two vectors must be the same size.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float dot( const BaseTensor<1>& other ) const;
-        /* Takes the cross product of this Vector with the other Vector and returns the result.
+        /** 
+         * Takes the cross product of this Vector with the other Vector and returns the result.
          * The two vectors must have a size of 3.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
@@ -224,43 +228,53 @@ namespace jai {
         /* Matrix operations */
         public:
 
-        /* Finds the matrix multiplication of the other Matrix on this Matrix and returns the result.
+        /**
+         * Takes the transpose of `this` Matrix and returns the result.
+         * If `this` Matrix is (m x n), then the result will be (n x m).
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
+        Tensor<2> transpose();
+        /**
+         * Finds the matrix multiplication of the `other` Matrix on `this` Matrix and 
+         * returns the result.
          * This Matrix must be of size (m x n) and the other Matrix must be of size (n x w)
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
         Tensor<2> mul( const BaseTensor<2>& other ) const;
-        /* Finds the matrix multiplication of the other Vector on this Matrix and returns the result.
+        /** 
+         * Finds the matrix multiplication of the other Vector on this Matrix and returns
+         * the result.
          * This matrix must be of size (m x n) and the other Vector must be of size (n).
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
         Tensor<1> mul( const BaseTensor<1>& other ) const;
-        
-        /* Transposes this Matrix.
-         */
-        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
-        void transpose();
 
         /* Getters */
         public:
 
-        /* Returns the rank of the tensor (the number of dimensions).
+        /**
+         * Returns the rank of the tensor (the number of dimensions).
          * NOTE: This is NOT the matrix rank.
          */
         size_t rank() const;
-        /* Defined for RANK=1 Tensors, this returns the size of the Tensor.
+        /**
+         * Defined for RANK=1 Tensors, this returns the size of the Tensor.
          * This is the same as calling totalSize()
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         size_t size() const;
-        /* Defined for RANK>1 Tensors, this returns the size of the given dimension.
+        /**
+         * Defined for RANK>1 Tensors, this returns the size of the given dimension.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         size_t size( size_t dimension ) const;
-        /* Returns the total size of the Tensor (the total number of elements).
+        /**
+         * Returns the total size of the Tensor (the total number of elements).
          */
         size_t totalSize() const;
 
-        /* Returns true if the `other` Tensor has the same dimensions as `this` Tensor, and false otherwise.
+        /**
+         * Returns true if the `other` Tensor has the same dimensions as `this` Tensor, and false otherwise.
          */
         bool isSameSize( const BaseTensor<RANK>& other ) const;
         /**
@@ -272,15 +286,27 @@ namespace jai {
          */
         bool operator != ( const BaseTensor<RANK>& other ) const;
 
-        /* Prints out the Tensor as a string.
+        /** 
+         * Prints out the Tensor as a string.
          */
         template<size_t R>
         friend std::ostream& operator << ( std::ostream& fs, const BaseTensor<R>& t );
 
         protected:
         public:
+        /**
+         * The size of each dimension of the Tensor.
+         */
         size_t dimensions[RANK];
+        /**
+         * The total number of elements in the Tensor.
+         * This is the size of each dimension multiplied together.
+         */
         size_t total_size;
+        /**
+         * The pointer to the allocated data in this Tensor.
+         * The memory from `data` to `data + total_size - 1` will always be valid.s
+         */
         float* data;
     };
 
@@ -682,6 +708,18 @@ namespace jai {
         result[2] = this[0] * other[1] - this[1] * other[0];
         return result;
     }
+    
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 2), int>::type>
+    Tensor<2> BaseTensor<RANK>::transpose() {
+        Tensor<2> result(this->dimensions[1], this->dimensions[0]);
+        for( int i = 0; i < this->dimensions[0]; ++i ) {
+            for( int j = 0; j < this->dimensions[1]; ++j ) {
+                result[{j, i}] = (*this)[{i, j}];
+            }
+        }
+        return result;
+    }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 2), int>::type>
     Tensor<2> BaseTensor<RANK>::mul( const BaseTensor<2>& other ) const {
@@ -713,18 +751,6 @@ namespace jai {
             result[i] = sum;
         }
         return result;
-    }
-
-    template<size_t RANK>
-    template<size_t R, typename std::enable_if<(R == 2), int>::type>
-    void BaseTensor<RANK>::transpose() {
-        for( int i = 0; i < this->dimensions[0]; ++i ) {
-            for( int j = i + 1; j < this->dimensions[1]; ++j ) {
-                const float temp = (*this)[{i, j}];
-                (*this)[{i, j}] = (*this)[{j, i}];
-                (*this)[{j, i}] = temp;
-            }
-        }
     }
 
     template<size_t RANK>
