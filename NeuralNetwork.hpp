@@ -37,7 +37,7 @@ namespace jai {
         /**
          * Creates a `std::unique_ptr` that manages a new copy of `this` activation.
          */
-        virtual std::unique_ptr<Activation> copy() const = 0;
+        virtual std::unique_ptr<Activation> clone() const = 0;
         /**
          * Verifies that `fn_D` is the derivative of `fn`, by testing values 
          * between `min` and `max`, with the given `step`.
@@ -52,7 +52,7 @@ namespace jai {
         public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * ReLU activation
@@ -61,7 +61,7 @@ namespace jai {
         public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * ELU activation
@@ -70,7 +70,7 @@ namespace jai {
         public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * Softplus activation
@@ -79,7 +79,7 @@ namespace jai {
         public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * Sigmoid activation.
@@ -88,7 +88,7 @@ namespace jai {
         public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * Augmented sigmoid activation with custom lower and upper bounds.
@@ -98,12 +98,13 @@ namespace jai {
         /**
          * Constructs a sigmoid activation with a lower bound `l` and
          * upper bound `u`.
+         * If `l` > `u`, this throws an `std::invalid_argument`.
          */
         AugSigmoidActivation( const float l, const float u );
 
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
 
         private:
         float lower_bound;
@@ -116,7 +117,7 @@ namespace jai {
         public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * Exponential function activation.
@@ -125,7 +126,7 @@ namespace jai {
     class ExpActivation : public Activation {
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
     };
     /**
      * Augmented exponential function activation with custom base.
@@ -135,12 +136,13 @@ namespace jai {
         public:
         /**
          * Constructs a exponential function activation with base `b`.
+         * If `b` < 0, this throws an `std::invalid_argument`.
          */
         AugExpActivation( const float b );
 
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
 
         private:
         float base;
@@ -159,7 +161,7 @@ namespace jai {
 
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
-        std::unique_ptr<Activation> copy() const override;
+        std::unique_ptr<Activation> clone() const override;
 
         private:
         float power;
@@ -176,16 +178,16 @@ namespace jai {
          * The activation function on Vector `x`.
          * Places the result in Vector `y`.
          */
-        virtual void fn( const Vector& x, Vector& y ) const = 0;
+        virtual void fn( const BaseVector& x, BaseVector& y ) const = 0;
         /**
          * The derivative of the activation function on Vector `x` using the .
          * Places the result in Vector `y`.
          */
-        virtual void fn_D( const Vector& x, const Vector& ___, Vector& y ) const = 0;
+        virtual void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const = 0;
         /**
          * Creates a `std::unique_ptr` that manages a new copy of `this` layer activation.
          */
-        virtual std::unique_ptr<LayerActivation> copy() const = 0;
+        virtual std::unique_ptr<LayerActivation> clone() const = 0;
         /**
          * Checks if the `layer_size` is valid for this layer activation.
          */
@@ -193,8 +195,13 @@ namespace jai {
         /**
          * Verifies that `fn_D` is the derivative of `fn`.
          * Returns true if it is, and false if not.
+         * Tests `test_count` Vectors of size `layer_size`, with random values bounded
+         * by `min` and `max`. The values are generated using the given `seed`.
          */
-        bool verify() const;
+        bool verify( 
+            const size_t layer_size, const float min = -10.0f, const float max = 10.0f, 
+            const size_t test_count = 20, const int seed = 0
+        ) const;
     };
     /**
      * Uniform layer activation.
@@ -207,9 +214,9 @@ namespace jai {
          */
         UniformLayerActivation( const Activation& activation );
 
-        void fn( const Vector& x, Vector& y ) const override;
-        void fn_D( const Vector& x, const Vector& ___, Vector& y ) const override;
-        std::unique_ptr<LayerActivation> copy() const override;
+        void fn( const BaseVector& x, BaseVector& y ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const override;
+        std::unique_ptr<LayerActivation> clone() const override;
         bool isValidLayerSize( size_t layer_size ) const override;
 
         private:
@@ -218,17 +225,23 @@ namespace jai {
     /**
      * Non Uniform layer activation.
      * Applies a different independent activation to each node in the layer.
+     * TODO: The construction of this is not very user friendly.
      */
     class NonUniformLayerActivation : public LayerActivation {
         public:
         /**
-         * Constructs a uniform layer activation using `activation` for each node.
+         * Constructs a non uniform layer activation using the `activations`, such
+         * that the i'th activation corresponds to the i'th node in the layer.
+         * This layers activation only supports layers such that the layer size is the
+         * same as the size of `activations`.
+         * The activations correspoinding to the passed `Activation*` should be allocated
+         * via the `new` keyword. They will then be managed by the class.
          */
-        NonUniformLayerActivation( const std::vector<std::unique_ptr<Activation>>& activations );
+        NonUniformLayerActivation( const std::vector<Activation*>& activations );
 
-        void fn( const Vector& x, Vector& y ) const override;
-        void fn_D( const Vector& x, const Vector& ___, Vector& y ) const override;
-        std::unique_ptr<LayerActivation> copy() const override;
+        void fn( const BaseVector& x, BaseVector& y ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const override;
+        std::unique_ptr<LayerActivation> clone() const override;
         bool isValidLayerSize( size_t layer_size ) const override;
  
         private:
@@ -237,34 +250,105 @@ namespace jai {
     /**
      * Softmax layer activation.
      */
-    class SoftmaxLayerActivation;
+    class SoftmaxLayerActivation : public LayerActivation {
+        public:
+
+        void fn( const BaseVector& x, BaseVector& y ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const override;
+        std::unique_ptr<LayerActivation> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+    };
+    // TODO: Do implementation
     /**
      * Split softmax layer activation.
      * Consists of multiple independent softmaxes across the layer's nodes.
      */
-    class SplitSoftmaxLayerActivation;
+    class SplitSoftmaxLayerActivation : public LayerActivation {
+        public:
+
+        /**
+         * Constructs a split softmax layer activation.
+         * `softmax_sizes` specifies that size of each independent softmax.
+         * This means the total size of the layer should be the sum of each element in
+         * `softmax_sizes`.
+         */
+        SplitSoftmaxLayerActivation( const std::vector<int> softmax_sizes );
+
+        void fn( const BaseVector& x, BaseVector& y ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const override;
+        std::unique_ptr<LayerActivation> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+
+        private:
+        std::vector<int> softmax_sizes;
+    };
+    // TODO: Do implementation
     /**
      * Mixed softmax layer activation.
-     * Consists of multiple independent softmax layers, as well as different 
-     * independent activations for the nodes at the bottom.
+     * Consists of different independent activations for the nodes at the start of the
+     * layer, and then multiple independent softmax layers after those.
      */
-    class MixedSoftmaxLayerActivation;
+    class MixedSoftmaxLayerActivation : public LayerActivation {
+        public:
 
+        /**
+         * Constructs a mixed softmax layer activation.
+         * The i'th activation corresponds to the i'th node in the layer, and 
+         * `softmax_sizes` specifies that size of each independent softmax after that.
+         * This means the total size of the layer should be the sum of the size of
+         * `activations` and each element in `softmax_sizes`.
+         */
+        MixedSoftmaxLayerActivation( 
+            const std::vector<Activation*>& activations, 
+            const std::vector<int> softmax_sizes 
+        );
 
-    // Struct the stores the activations for an entire layer
-    // struct LayerActivation {
-    //     public:
-    //     size_t layer_size;
-    //     std::function<void(const float*, float*)> fn;
-    //     std::function<void(const float*, const float*, float*)> fn_d;
-    // };
+        void fn( const BaseVector& x, BaseVector& y ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const override;
+        std::unique_ptr<LayerActivation> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
 
-    // Output activation functions
-    extern const LayerActivation ACTIVATION( const Activation& activation, const size_t layer_size );
-    extern const LayerActivation ACTIVATIONS( const std::vector<Activation>& activations );
-    extern const LayerActivation SOFTMAX( const size_t layer_size );
-    extern const LayerActivation SPLIT_SOFTMAX( const std::vector<int>& softmax_sizes );                // Creates multiple softmaxes in one output, each with the specified sizes
-    extern const LayerActivation MIXED_SOFTMAX( );                                                      // Creates a mixed output of softmaxes and other activations
+        private:
+        std::vector<std::unique_ptr<Activation>> activations;
+        std::vector<int> softmax_sizes;
+    };
+
+    /**
+     * This represents a loss function to be applied to the output of a neural network.
+     * It contains a function for the loss and its derivative.
+     * This is an abstract class intended to be overridden for specific functionality.
+     */
+    class LossFunction {
+        public:
+        /**
+         * The loss function on Vector `x`.
+         * Places the result in Vector `y`.
+         */
+        virtual float fn( const BaseVector& x, BaseVector& expected_x ) const = 0;
+        /**
+         * The derivative of the activation function on Vector `x` using the .
+         * Places the result in Vector `y`.
+         */
+        virtual void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y ) const = 0;
+        /**
+         * Creates a `std::unique_ptr` that manages a new copy of `this` layer activation.
+         */
+        virtual std::unique_ptr<LayerActivation> clone() const = 0;
+        /**
+         * Checks if the `layer_size` is valid for this layer activation.
+         */
+        virtual bool isValidLayerSize( size_t layer_size ) const = 0;
+        /**
+         * Verifies that `fn_D` is the derivative of `fn`.
+         * Returns true if it is, and false if not.
+         * Tests `test_count` Vectors of size `layer_size`, with random values bounded
+         * by `min` and `max`. The values are generated using the given `seed`.
+         */
+        bool verify( 
+            const size_t layer_size, const float min = -10.0f, const float max = 10.0f, 
+            const size_t test_count = 20, const int seed = 0
+        ) const;
+    };
 
     // Struct that contains the loss function and it's derivative
     // Only calculates loss using a network's outputted values and the actual values
@@ -277,6 +361,8 @@ namespace jai {
     // Loss functions
     extern const LossFunction SQUARED_DIFF( const size_t output_size );
     extern const LossFunction ABS_DIFF( const size_t output_size );
+
+
 
     class NeuralNetwork {
         public:
@@ -298,9 +384,9 @@ namespace jai {
         // Constructors
         NeuralNetwork();
         NeuralNetwork(  size_t input_layer_size, size_t output_layer_size,
-                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_activations = {0, nullptr, nullptr} );
+                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation()) );
         NeuralNetwork(  size_t input_layer_size, size_t output_layer_size, size_t hidden_layer_size, size_t hidden_layer_count,
-                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_activations = {0, nullptr, nullptr} );
+                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation()) );
 
         // Sets random weights between min and max
         void randomInit(const float min = -1, const float max = 1);
@@ -330,10 +416,10 @@ namespace jai {
         float train( const float* inputs, const float* actual_outputs, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
         float train( const float* inputs, const float* actual_outputs, const LossFunction& loss_fn, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
         // Updates the network like train(), but trains all of the datapoints at once, with the given batch size.
-        std::vector<float> batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, 
+        jai::Vector batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, 
                                        const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
                                        const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
-        std::vector<float> batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
+        jai::Vector batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
                                        const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
                                        const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
 
@@ -380,13 +466,13 @@ namespace jai {
         size_t output_layer_size;
         size_t hidden_layer_size;
         size_t hidden_layer_count;
-        std::vector<float> weights;
-        std::vector<float> bias;
+        jai::Vector weights;
+        jai::Vector bias;
         std::unique_ptr<Activation> hidden_activation;
-        LayerActivation output_activations;
+        std::unique_ptr<LayerActivation> output_layer_activation;
         // Cached values from propagateStore() or backpropagateStore()
-        std::vector<float> propagate_vals_cache;
-        std::vector<float> gradient_vals_cache;
+        jai::Vector propagate_vals_cache;
+        jai::Vector gradient_vals_cache;
     };
 }
 
@@ -436,7 +522,7 @@ namespace jai {
     float LinearActivation::fn_D( const float x ) const {
         return 1.0f;
     }
-    std::unique_ptr<Activation> LinearActivation::copy() const {
+    std::unique_ptr<Activation> LinearActivation::clone() const {
         return std::make_unique<Activation>(new LinearActivation(*this));
     }
 
@@ -446,7 +532,7 @@ namespace jai {
     float ReLUActivation::fn_D( const float x ) const {
         return (float) !std::signbit(x);
     }
-    std::unique_ptr<Activation> ReLUActivation::copy() const {
+    std::unique_ptr<Activation> ReLUActivation::clone() const {
         return std::make_unique<Activation>(new ReLUActivation(*this));
     }
 
@@ -456,7 +542,7 @@ namespace jai {
     float ELUActivation::fn_D( const float x ) const {
         return ( x >=0 ) ?  1.0f : std::exp(x);
     }
-    std::unique_ptr<Activation> ELUActivation::copy() const {
+    std::unique_ptr<Activation> ELUActivation::clone() const {
         return std::make_unique<Activation>(new ELUActivation(*this));
     }
 
@@ -466,7 +552,7 @@ namespace jai {
     float SoftplusActivation::fn_D( const float x ) const {
         return 1 / (1 + std::exp(-x));
     }
-    std::unique_ptr<Activation> SoftplusActivation::copy() const {
+    std::unique_ptr<Activation> SoftplusActivation::clone() const {
         return std::make_unique<Activation>(new SoftplusActivation(*this));
     }
 
@@ -477,11 +563,14 @@ namespace jai {
         const float sigmoid = 1.0f / (1 + std::exp(-x));
         return sigmoid * (1 - sigmoid);
     }
-    std::unique_ptr<Activation> SigmoidActivation::copy() const {
+    std::unique_ptr<Activation> SigmoidActivation::clone() const {
         return std::make_unique<Activation>(new SigmoidActivation(*this));
     }
 
     AugSigmoidActivation::AugSigmoidActivation( const float l, const float u ) {
+        if( l > u ) {
+            throw std::invalid_argument("The lower bound cannot be greater than the upper bound");
+        }
         this->lower_bound = l;
         this->range = u - l;
     }
@@ -492,7 +581,7 @@ namespace jai {
         const float sigmoid = 1.0f / (1 + std::exp(-x));
         return this->range * sigmoid * (1 - sigmoid);
     }
-    std::unique_ptr<Activation> AugSigmoidActivation::copy() const {
+    std::unique_ptr<Activation> AugSigmoidActivation::clone() const {
         return std::make_unique<Activation>(new AugSigmoidActivation(*this));
     }
 
@@ -503,7 +592,7 @@ namespace jai {
         const float tanh = std::tanh(x);
         return 1 - tanh*tanh;
     }
-    std::unique_ptr<Activation> TanhActivation::copy() const {
+    std::unique_ptr<Activation> TanhActivation::clone() const {
         return std::make_unique<Activation>(new TanhActivation(*this));
     }
 
@@ -513,11 +602,14 @@ namespace jai {
     float ExpActivation::fn_D( const float x ) const {
         return std::exp(x);
     }
-    std::unique_ptr<Activation> ExpActivation::copy() const {
+    std::unique_ptr<Activation> ExpActivation::clone() const {
         return std::make_unique<Activation>(new ExpActivation(*this));
     }
 
     AugExpActivation::AugExpActivation( const float b ) {
+        if( b < 0 ) {
+            throw std::invalid_argument("The base of an exponential function cannot be negative");
+        }
         this->base = b;
         this->ln_of_base = std::log(b);
     }
@@ -527,7 +619,7 @@ namespace jai {
     float AugExpActivation::fn_D( const float x ) const {
         return this->ln_of_base * std::pow(this->base, x);
     }
-    std::unique_ptr<Activation> AugExpActivation::copy() const {
+    std::unique_ptr<Activation> AugExpActivation::clone() const {
         return std::make_unique<Activation>(new AugExpActivation(*this));
     }
 
@@ -540,27 +632,79 @@ namespace jai {
     float PowerActivation::fn_D( const float x ) const {
         return this->power * std::pow(x, this->power-1);
     }
-    std::unique_ptr<Activation> PowerActivation::copy() const {
+    std::unique_ptr<Activation> PowerActivation::clone() const {
         return std::make_unique<Activation>(new PowerActivation(*this));
     }
-        
-    bool LayerActivation::verify() const {
+    
+    
+    /* LayerActivations */
 
+    bool LayerActivation::verify( 
+        const size_t layer_size, const float min, const float max,
+        const size_t test_count, const int seed 
+    ) const {
+        // The distance from x used when estimating the slope between x and another point
+        const float poll_distance = 1e-2;
+        // The tolerance for how far the predicted and expected values can be
+        const float tol = 1e-3;
+
+        Vector x_diff(layer_size, poll_distance);
+
+        const Vector one_vec(layer_size, 1.0f);
+        // Run test on a number of Vectors
+        for( size_t i = 0; i < test_count; ++i ) {
+            // Generate Vector with random values
+            jai::Vector x(layer_size);
+            std::srand(seed);
+            const float range = max - min;
+            for( size_t i = 0; i < x.size(); ++i ) {
+                x[i] = ((double) std::rand() / RAND_MAX) * range + min;
+            }
+
+            // Calculate actual values
+            Vector y(layer_size);
+            Vector y_D(layer_size);
+            this->fn(x, y);
+            this->fn_D(x, one_vec, y_D);
+
+            // Check some values around x
+            Vector x_n = x - x_diff;
+            Vector x_p = x + x_diff;
+            Vector y_n;
+            Vector y_p;
+            this->fn(x_n, y_n);
+            this->fn(x_p, y_p);
+
+            // Calculate predicted slopes
+            Vector predicted_y_D_n = (y - y_n) / x_diff;
+            Vector predicted_y_D_p = (y - y_p) / x_diff;
+            Vector predicted_y_D = (predicted_y_D_n + predicted_y_D_p) / 2.0f;
+
+            // Check if the slopes are close enough
+            for( size_t i = 0; i < layer_size; ++i ) {
+                // Return false if the predicted and actual values are too far
+                if( predicted_y_D[i] - tol > y_D[i] || predicted_y_D[i] + tol < y_D[i] ) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     UniformLayerActivation::UniformLayerActivation( const Activation& activation )
-        : activation(activation.copy()) { }
-    void UniformLayerActivation::fn( const Vector& x, Vector& y ) const {
+        : activation(activation.clone()) { }
+    void UniformLayerActivation::fn( const BaseVector& x, BaseVector& y ) const {
         for( size_t i = 0; i < x.size(); ++i ) {
             y[i] = this->activation.get()->fn(x[i]);
         }  
     }
-    void UniformLayerActivation::fn_D( const Vector& x, const Vector& ___, Vector& y ) const {
+    void UniformLayerActivation::fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const {
         for( size_t i = 0; i < x.size(); ++i ) {
-            y[i] = this->activation.get()->fn_D(x[i]) * ___[i];
+            y_D[i] = this->activation.get()->fn_D(x[i]) * ___[i];
         }
     }
-    std::unique_ptr<LayerActivation> UniformLayerActivation::copy() const {
+    std::unique_ptr<LayerActivation> UniformLayerActivation::clone() const {
         return std::make_unique<LayerActivation>(
             new UniformLayerActivation(*this->activation.get())
         );
@@ -569,121 +713,80 @@ namespace jai {
         return true;
     }
 
-    NonUniformLayerActivation::NonUniformLayerActivation( const std::vector<std::unique_ptr<Activation>>& activations )
-        : activations(activations) { }
-    void NonUniformLayerActivation::fn( const Vector& x, Vector& y ) const {
+    NonUniformLayerActivation::NonUniformLayerActivation( const std::vector<Activation*>& activations ) {
+        for( size_t i = 0; i < activations.size(); ++i ) {
+            this->activations.push_back(
+                std::make_unique<Activation>(activations[i])
+            );
+        }
+     }
+    void NonUniformLayerActivation::fn( const BaseVector& x, BaseVector& y ) const {
         for( size_t i = 0; i < x.size(); ++i ) {
             y[i] = this->activations[i].get()->fn(x[i]);
-        }  
-    }
-    void NonUniformLayerActivation::fn_D( const Vector& x, const Vector& ___, Vector& y ) const {
-        for( size_t i = 0; i < x.size(); ++i ) {
-            y[i] = this->activations[i].get()->fn_D(x[i]) * ___[i];
         }
     }
-    std::unique_ptr<LayerActivation> NonUniformLayerActivation::copy() const {
+    void NonUniformLayerActivation::fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const {
+        for( size_t i = 0; i < x.size(); ++i ) {
+            y_D[i] = this->activations[i].get()->fn_D(x[i]) * ___[i];
+        }
+    }
+    std::unique_ptr<LayerActivation> NonUniformLayerActivation::clone() const {
+        // Create copies of activations
+        std::vector<std::unique_ptr<Activation>> activation_cpy;
+        std::vector<Activation*> activation_cpy_ptrs(this->activations.size());
+        for( size_t i = 0; i < this->activations.size(); ++i ) {
+            activation_cpy.push_back(this->activations[i]->clone());
+            activation_cpy_ptrs[i] = activation_cpy[i].get();
+        }
+
         return std::make_unique<LayerActivation>(
-            new NonUniformLayerActivation(this->activations)
+            new NonUniformLayerActivation(activation_cpy_ptrs)
         );
     }
     bool NonUniformLayerActivation::isValidLayerSize( size_t layer_size ) const {
         return layer_size == this->activations.size();
     }
 
-    // OUTPUT ACTIVATIONS
-    const LayerActivation ACTIVATION(const Activation& activation, const size_t layer_size) {
-        return {
-            layer_size,
-            [activation, layer_size](const float* p_v, float* v){
-                for(size_t i = 0; i < layer_size; ++i){
-                    v[i] = activation.fn(p_v[i]);
-                }
-            },
-            [activation, layer_size](const float* p_v, const float* post_d, float* v){
-                for(size_t i = 0; i < layer_size; ++i){
-                    v[i] = activation.fn_d(p_v[i]) * post_d[i];
-                }
-            }
-        };
+    void SoftmaxLayerActivation::fn( const BaseVector& x, BaseVector& y ) const {
+        const size_t layer_size = x.size();
+        float sum = 0;
+        for(size_t i = 0; i < layer_size; ++i){
+            y[i] = std::exp(x[i]);
+            sum += y[i];
+        }
+        for(size_t i = 0; i < layer_size; ++i){
+            y[i] = x[i] / sum;
+        }
     }
-    const LayerActivation ACTIVATIONS(const std::vector<Activation>& activations) {
-        return {
-            activations.size(),
-            [activations](const float* p_v, float* v){
-                for(size_t i = 0; i < activations.size(); ++i){
-                    v[i] = activations[i].fn(p_v[i]);
-                }
-            },
-            [activations](const float* p_v, const float* post_d, float* v){
-                for(size_t i = 0; i < activations.size(); ++i){
-                    v[i] = activations[i].fn_d(p_v[i]) * post_d[i];
-                }
-            }
-        };
+    // TODO: This is wrong
+    void SoftmaxLayerActivation::fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const {
+        const size_t layer_size = x.size();
+        // Find softmax first
+        float softmax[layer_size];
+        float e_sum = 0;
+        for(size_t i = 0; i < layer_size; ++i){
+            softmax[i] = std::exp(x[i]);
+            e_sum += softmax[i];
+        }
+        for(size_t i = 0; i < layer_size; ++i){
+            softmax[i] = softmax[i] / e_sum;
+        }
+        // Calculate derivative using softmax
+        float sum = 0;
+        for( size_t i = 0; i < layer_size; ++i ) {
+            sum += softmax[i] * ___[i];
+        }
+        for( size_t i = 0; i < layer_size; ++i ) {
+            y_D[i] += softmax[i] * (___[i] - sum);
+        }
     }
-    const LayerActivation SOFTMAX(const size_t layer_size) { 
-        return {
-            layer_size,
-            [layer_size](const float* p_v, float* v){
-                float sum = 0;
-                for(size_t i = 0; i < layer_size; ++i){
-                    v[i] = std::exp(p_v[i]);
-                    sum += v[i];
-                }
-                for(size_t i = 0; i < layer_size; ++i){
-                    v[i] = v[i] / sum;
-                }
-            },
-            [layer_size](const float* p_v, const float* post_d, float* v){
-                // Find softmax first
-                float softmax[layer_size];
-                float e_sum = 0;
-                for(size_t i = 0; i < layer_size; ++i){
-                    softmax[i] = std::exp(p_v[i]);
-                    e_sum += softmax[i];
-                }
-                for(size_t i = 0; i < layer_size; ++i){
-                    softmax[i] = softmax[i] / e_sum;
-                }
-                // Calculate derivative using softmax
-                float sum = 0;
-                for( size_t i = 0; i < layer_size; ++i ) {
-                    sum += softmax[i] * post_d[i];
-                }
-                for( size_t i = 0; i < layer_size; ++i ) {
-                    v[i] += softmax[i] * (post_d[i] - sum);
-                }
-            }
-        };
+    std::unique_ptr<LayerActivation> SoftmaxLayerActivation::clone() const {
+        return std::make_unique<LayerActivation>(new SoftmaxLayerActivation());
     }
-    const LayerActivation SPLIT_SOFTMAX( const std::vector<size_t>& softmax_sizes ) {
-        // Count total size of the layer
-        size_t total_layer_size = 0;
-        for( const size_t size : softmax_sizes ) 
-            total_layer_size += size;
-        
-        return {
-            total_layer_size,
-            [softmax_sizes](const float* p_v, float* v){
-                
-            },
-            [softmax_sizes](const float* p_v, const float* post_d, float* v){
-                
-            }
-        };
+    bool SoftmaxLayerActivation::isValidLayerSize( size_t layer_size ) const {
+        return true;
     }
-    const LayerActivation MIXED_SOFTMAX( ) {
-        
-        return {
-            0,
-            [](const float* p_v, float* v){
-                
-            },
-            [](const float* p_v, const float* post_d, float* v){
-                
-            }
-        };
-    }
+
 
     // LOSS FUNCTIONS
     const LossFunction SQUARED_DIFF( const size_t output_size ) {
@@ -727,7 +830,8 @@ namespace jai {
         };
     };
 
-    // NEWTORK CONSTRUCTORS
+
+    // NETWORK CONSTRUCTORS
     NeuralNetwork::NeuralNetwork( ) { 
         // Set sizes to 0
         this->input_layer_size = 0;
@@ -736,15 +840,15 @@ namespace jai {
         this->hidden_layer_count = 0;
     }
     NeuralNetwork::NeuralNetwork(   size_t input_layer_size, size_t output_layer_size, size_t hidden_layer_size, size_t hidden_layer_count,
-                                    const Activation& hidden_activation, const LayerActivation& output_activations ) {
+                                    const Activation& hidden_activation, const LayerActivation& output_layer_activation ) {
         // Check if network sizes are invalid
-        if(input_layer_size < 1  ||  output_layer_size < 1){
+        if( input_layer_size < 1  ||  output_layer_size < 1 ) {
             throw std::invalid_argument("Cannot have input or output layer with size 0.");
         }
-        if(hidden_layer_size < 1  ||  hidden_layer_count < 1){
+        if( hidden_layer_size < 1  ||  hidden_layer_count < 1 ) {
             throw std::invalid_argument("Cannot have hidden layer with size 0.");
         }
-        if(output_activations.layer_size != output_layer_size) {
+        if( !output_layer_activation.isValidLayerSize(output_layer_size) ) {
             throw std::invalid_argument("Network output layer size does not match output activations size.");
         }
         
@@ -754,11 +858,8 @@ namespace jai {
         this->hidden_layer_size = hidden_layer_size;
         this->hidden_layer_count = hidden_layer_count;
         // Set activation functions
-        this->hidden_activation = hidden_activation;
-        if( output_activations.fn  &&  output_activations.fn_d )
-            this->output_activations = output_activations;
-        else
-            this->output_activations = ACTIVATION(SIGMOID, output_layer_size);
+        this->hidden_activation = hidden_activation.clone();
+        this->output_layer_activation = output_layer_activation.clone();
         // Calculate total nodes and edges
         recalculate();
     }
@@ -851,7 +952,7 @@ namespace jai {
             weight_start_index += hidden_layer_size;
         }
         // Apply output activations
-        output_activations.fn( prev_node_vals+output_layer_start_index, post_node_vals+output_layer_start_index );
+        output_layer_activation.fn( prev_node_vals+output_layer_start_index, post_node_vals+output_layer_start_index );
 
         // Return pointer to outputs
         return (post_node_vals + output_layer_start_index);
@@ -912,12 +1013,12 @@ namespace jai {
             for(int j = 0; j < hidden_layer_size; j++){
                 prev_outputs[i] += hidden_node_val[j] * weights[weight_start_index + j];
             }
-            //outputs[i] = output_activations[i].fn( outputs[i] );
+            //outputs[i] = output_layer_activation[i].fn( outputs[i] );
 
             weight_start_index += hidden_layer_size;
         }
         // Apply output activations
-        output_activations.fn( prev_outputs, outputs );
+        output_layer_activation.fn( prev_outputs, outputs );
         }
     }
 
@@ -951,11 +1052,11 @@ namespace jai {
         const int prev_layer_start_index = this->getBiasLayerIndex(hidden_layer_count-1);
         // Calculate output derviatives
         float prev_outputs_d[output_layer_size];
-        output_activations.fn_d(prev_node_vals + this_layer_start_index, loss_d, prev_outputs_d);
+        output_layer_activation.fn_d(prev_node_vals + this_layer_start_index, loss_d, prev_outputs_d);
         for(int i = output_layer_size-1; i >= 0; --i){
             const int node_index = this_layer_start_index + i;
             // Bias
-                                        //output_activations[i].fn_d(prev_node_vals[node_index])
+                                        //output_layer_activation[i].fn_d(prev_node_vals[node_index])
             bias_grad[node_index] = (1) * prev_outputs_d[i];
             
             // Weights
@@ -1074,12 +1175,12 @@ namespace jai {
         return loss_fn.fn(outputs, actual_outputs);
     }
     // NOT IMPLEMENTED
-    std::vector<float> NeuralNetwork::batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
+    jai::Vector NeuralNetwork::batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
                                        const size_t batch_size, const size_t epochs, const float learning_rate, 
                                        const float regularization_strength, const float momentum_decay, const float sqr_momentum_decay ) {
         return batchTrain(inputs, actual_outputs, SQUARED_DIFF(output_layer_size), batch_size, epochs, learning_rate, regularization_strength, momentum_decay, sqr_momentum_decay);
     }
-    std::vector<float> NeuralNetwork::batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
+    jai::Vector NeuralNetwork::batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
                                        const size_t batch_size, const size_t epochs, const float learning_rate, 
                                        const float regularization_strength, const float momentum_decay, const float sqr_momentum_decay ) {        
         throw "NOT IMPLEMENTED";
@@ -1095,7 +1196,7 @@ namespace jai {
         }
 
         // Initialize vector that stores average loss after each batch
-        std::vector<float> losses;
+        jai::Vector losses;
         losses.reserve( epochs * (1 + n/batch_size) );
 
         // Create vector with datapoint indexes
@@ -1213,8 +1314,8 @@ namespace jai {
         const int bias_count = hidden_layer_size*hidden_layer_count + output_layer_size;
 
         // Initialize all weights at zero
-        weights = std::vector<float>(weight_count, 0);
-        bias = std::vector<float>(bias_count, 0);
+        weights = jai::Vector(weight_count, 0);
+        bias = jai::Vector(bias_count, 0);
     }
 }
 

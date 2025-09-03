@@ -1,6 +1,8 @@
 /* tensor_test.cpp */
 
 /*
+ * Test of different member functions of the tensor classes in Tensor.hpp.
+ *
  * g++ -g -Wextra -Wall tensor_test.cpp -o tensor_test.exe
  * tensor_test.exe
  */
@@ -9,11 +11,13 @@
 #include "../unit_test.hpp"
 
 
+
 /**
  * Unit tests.
  */
 int main() {
-    START_TEST("")
+    START_TEST("Tensor")
+
 
     /* 1. Test RANK=1 constructor and assignment */
     std::cout << "Starting Test: RANK=1 constructor and assignment\n";
@@ -29,11 +33,11 @@ int main() {
 
     test_throws(({ jai::Tensor<1> t1_1_t1(0); }));
 
-    
+
     /* 2. Test RANK=1 fill constructor */
     std::cout << "Starting Test: RANK=1 fill constructor\n";
     const jai::Tensor<1> t1_2(5, 10);
-    
+
     test_equals( t1_2.rank(), 1 );
     test_equals( t1_2.totalSize(), 5 );
     test_equals( t1_2.size(), 5 );
@@ -223,10 +227,10 @@ int main() {
 
     /* 11. Test flattened() */
     std::cout << "Starting Test: flattened()\n";
-    jai::Tensor<3> t3_11 = { 
-        { {1101, 1102, 1103}, {1104, 1105, 1106} }, 
-        { {1107, 1108, 1109}, {1110, 1111, 1112} }, 
-        { {1113, 1114, 1115}, {1116, 1117, 1118} } 
+    jai::Tensor<3> t3_11 = {
+        { {1101, 1102, 1103}, {1104, 1105, 1106} },
+        { {1107, 1108, 1109}, {1110, 1111, 1112} },
+        { {1113, 1114, 1115}, {1116, 1117, 1118} }
     };
     jai::VTensor<1> vt1_11 = t3_11.flattened();
     vt1_11[10] = 1120;
@@ -335,7 +339,7 @@ int main() {
     test_equals( (t2_16_1[{1, 0}]), 1610);
     test_equals( (t2_16_1[{1, 1}]), 1611);
     test_equals( (t2_16_1[{1, 2}]), 1612);
-    
+
     t2_16_1[0].set(t1_16_1);
 
     test_equals( (t2_16_1[{0, 0}]), 1613);
@@ -350,7 +354,7 @@ int main() {
     std::cout << "Starting test: addTo()\n";
     jai::Tensor<1> t1_17_1 = {171, 172, 173};
     const jai::Tensor<1> t1_17_2 = {174, 175, 176};
-    
+
     t1_17_1.addTo(t1_17_2);
 
     test_equals( t1_17_1[0], 345 );
@@ -362,7 +366,7 @@ int main() {
     std::cout << "Starting test: subFrom()\n";
     jai::Tensor<1> t1_18_1 = {181, 182, 183};
     const jai::Tensor<1> t1_18_2 = {184, 185, 186};
-    
+
     t1_18_1.subFrom(t1_18_2);
 
     test_equals( t1_18_1[0], -3 );
@@ -373,7 +377,7 @@ int main() {
     /* 19. Test scaleBy() */
     std::cout << "Starting test: scaleBy()\n";
     jai::Tensor<1> t1_19_1 = {191, 192, 193};
-    
+
     t1_19_1.scaleBy(2);
 
     test_equals( t1_19_1[0], 382 );
@@ -386,7 +390,7 @@ int main() {
     const jai::Tensor<1> t1_20_1 = {201, -202, 203};
     const jai::Tensor<1> t1_20_2 = {0, 0, 204};
     const jai::Tensor<1> t1_20_3 = {0, -205, 0};
-    
+
     test_float_equals( t1_20_1.mag(), 349.877121287 );
     test_float_equals( t1_20_2.mag(), 204 );
     test_float_equals( t1_20_3.mag(), 205 );
@@ -483,6 +487,9 @@ int main() {
     test_equals( (t2_27[{1, 0}]), 548);
     test_equals( (t2_27[{1, 1}]), 550);
     test_equals( (t2_27[{1, 2}]), 552);
+
+
+    /* TODO: Test cases for Tensor multiplication and division operators */
 
 
     /* TODO: Test cases for other Vector and Matrix specific operations */

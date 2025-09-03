@@ -27,7 +27,7 @@ namespace jai {
         using type = std::initializer_list<float>;
     };
 
-    /** 
+    /**
      * Recursive type used to initialize a Tensor of rank `RANK` with elements.
      * An InitializerElements<RANK> contains a set of InitializerElements<RANK-1>s,
      * and an InitializerElements<1> contains a set of floats.
@@ -61,13 +61,15 @@ namespace jai {
         /* Accessors */
         public:
 
-        /** 
-         * Defined for RANK=1 Tensors, this returns the element at the given index in the first (and only) dimension.
+        /**
+         * Defined for RANK=1 Tensors, this returns the element at the given index in the
+         * first (and only) dimension.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         const float& operator [] ( size_t index ) const;
         /**
-         * Defined for RANK=1 Tensors, this returns a mutable reference to the element at the `index` in the first (and only) dimension.
+         * Defined for RANK=1 Tensors, this returns a mutable reference to the element at
+         * the `index` in the first (and only) dimension.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float& operator [] ( size_t index );
@@ -83,13 +85,15 @@ namespace jai {
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         float& operator [] ( const size_t (&indexes)[RANK] );
         /**
-         * Defined for RANK>1 Tensors, this returns an immutable View Tensor with rank RANK-1, at the given index in the first dimension.
+         * Defined for RANK>1 Tensors, this returns an immutable View Tensor with rank
+         * RANK-1, at the given index in the first dimension.
          * The returned View Tensor is backed by `this` Tensor.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         const VTensor<RANK-1> operator [] ( size_t index ) const;
-        /** 
-         * Defined for RANK>1 Tensors, this returns a View Tensor with rank RANK-1, at the given index in the first dimension.
+        /**
+         * Defined for RANK>1 Tensors, this returns a View Tensor with rank RANK-1, at
+         * the given index in the first dimension.
          * The returned View Tensor is backed by `this` Tensor.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
@@ -103,25 +107,29 @@ namespace jai {
          * Returns a View Tensor which is backed by `this` Tensor.
          */
         VTensor<RANK> view();
-        /** 
-         * Returns an immutable View Tensor with rank RANK+1 of `this` Tensor, where it's last dimension is of size 1.
+        /**
+         * Returns an immutable View Tensor with rank RANK+1 of `this` Tensor, where it's
+         * last dimension is of size 1.
          * The returned View Tensor is backed by `this` Tensor.
          * Useful for converting a Vector into an (n x 1) Matrix for matrix multiplication.
          */
         const VTensor<RANK+1> rankUp() const;
-        /** 
-         * Returns a View Tensor with rank RANK+1 of `this` Tensor, where it's last dimension is of size 1.
+        /**
+         * Returns a View Tensor with rank RANK+1 of `this` Tensor, where it's last
+         * dimension is of size 1.
          * The returned View Tensor is backed by `this` Tensor.
          * Useful for converting a Vector into an (n x 1) Matrix for matrix multiplication.
          */
         VTensor<RANK+1> rankUp();
         /**
-         * Returns an immutable View Tensor with rank 1 of `this` Tensor, all of it's values are flattened into one vector.
+         * Returns an immutable View Tensor with rank 1 of `this` Tensor, all of it's
+         * values are flattened into one vector.
          * The returned View Tensor is backed by `this` Tensor.
          */
         const VTensor<1> flattened() const;
         /**
-         * Returns a View Tensor with rank 1 of `this` Tensor, all of it's values are flattened into one vector.
+         * Returns a View Tensor with rank 1 of `this` Tensor, all of it's values are
+         * flattened into one vector.
          * The returned View Tensor is backed by `this` Tensor.
          */
         VTensor<1> flattened();
@@ -129,33 +137,53 @@ namespace jai {
         /* Binary Operations */
         public:
 
-        /** 
-         * Adds all of the elements in the `other` Tensor to all of the elements in `this` Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have the same dimensions.
-         * The dimensions of this Tensor are passed onto the result Tensor.
+        /**
+         * Adds all of the elements in the `other` Tensor to all of the elements in
+         * `this` Tensor and returns the result.
+         * Both Tensors must be the same total size, but do not necessarily have to have
+         * the same dimensions.
+         * The dimensions of `this` Tensor are passed onto the result Tensor.
          */
         Tensor<RANK> operator + ( const BaseTensor<RANK>& other ) const;
-        /** 
-         * Subtracts all of the elements in the `other` Tensor from all of the elements in `this` Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have the same dimensions.
-         * The dimensions of this Tensor are passed onto the result Tensor.
+        /**
+         * Subtracts all of the elements in the `other` Tensor from all of the elements
+         * in `this` Tensor and returns the result.
+         * Both Tensors must be the same total size, but do not necessarily have to have
+         * the same dimensions.
+         * The dimensions of `this` Tensor are passed onto the result Tensor.
          */
         Tensor<RANK> operator - ( const BaseTensor<RANK>& other ) const;
+        /**
+         * Multiplies all of the elements in the `other` Tensor with all of the elements
+         * in `this` Tensor and returns the result.
+         * Both Tensors must be the same total size, but do not necessarily have to have
+         * the same dimensions.
+         * The dimensions of `this` Tensor are passed onto the result Tensor.
+         */
+        Tensor<RANK> operator * ( const BaseTensor<RANK>& other ) const;
+        /**
+         * Divides all of the elements in the `other` Tensor from all of the elements
+         * in `this` Tensor and returns the result.
+         * Both Tensors must be the same total size, but do not necessarily have to have
+         * the same dimensions.
+         * The dimensions of `this` Tensor are passed onto the result Tensor.
+         */
+        Tensor<RANK> operator / ( const BaseTensor<RANK>& other ) const;
         /**
          * Multiplies all of the elements in `this` Tensor by `scale` and returns the result.
         */
         template<size_t R>
         friend Tensor<R> operator * ( const BaseTensor<R>& tensor, float scale );
-        /** 
+        /**
          * Multiplies all of the elements in `this` Tensor by `scale` and returns the result.
         */
         template<size_t R>
         friend Tensor<R> operator * ( float scale, const BaseTensor<R>& tensor );
-        /** 
+        /**
          * Divides all of the elements in `this` Tensor by `scale` and returns the result.
         */
         Tensor<RANK> operator / ( float scale ) const;
-        /** 
+        /**
          * Negates all of the elements in `this` Tensor and returns the result.
          */
         Tensor<RANK> operator - () const;
@@ -207,18 +235,23 @@ namespace jai {
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float mag() const;
-        /** 
+        /**
          * Finds the squared magnitude of this Vector and returns the result.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float squaredMag() const;
-        /** 
+        /**
+         * Normalizes `this` Vector, and returns the result.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
+        Tensor<1> normalized() const;
+        /**
          * Takes the dot product of this Vector with the other Vector and returns the result.
          * The two vectors must be the same size.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         float dot( const BaseTensor<1>& other ) const;
-        /** 
+        /**
          * Takes the cross product of this Vector with the other Vector and returns the result.
          * The two vectors must have a size of 3.
          */
@@ -235,13 +268,13 @@ namespace jai {
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
         Tensor<2> transpose();
         /**
-         * Finds the matrix multiplication of the `other` Matrix on `this` Matrix and 
+         * Finds the matrix multiplication of the `other` Matrix on `this` Matrix and
          * returns the result.
          * This Matrix must be of size (m x n) and the other Matrix must be of size (n x w)
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
         Tensor<2> mul( const BaseTensor<2>& other ) const;
-        /** 
+        /**
          * Finds the matrix multiplication of the other Vector on this Matrix and returns
          * the result.
          * This matrix must be of size (m x n) and the other Vector must be of size (n).
@@ -254,9 +287,17 @@ namespace jai {
 
         /**
          * Returns the rank of the tensor (the number of dimensions).
-         * NOTE: This is NOT the matrix rank.
+         * NOTE: This is NOT the same as the matrix rank.
          */
         size_t rank() const;
+        /**
+         * Returns the total size of the Tensor (the total number of elements).
+         */
+        size_t totalSize() const;
+        /**
+         * Returns a pointer to the start of the contiguous data stored in the Tensor.
+         */
+        const float* data() const;
         /**
          * Defined for RANK=1 Tensors, this returns the size of the Tensor.
          * This is the same as calling totalSize()
@@ -268,10 +309,6 @@ namespace jai {
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         size_t size( size_t dimension ) const;
-        /**
-         * Returns the total size of the Tensor (the total number of elements).
-         */
-        size_t totalSize() const;
 
         /**
          * Returns true if the `other` Tensor has the same dimensions as `this` Tensor, and false otherwise.
@@ -286,7 +323,7 @@ namespace jai {
          */
         bool operator != ( const BaseTensor<RANK>& other ) const;
 
-        /** 
+        /**
          * Prints out the Tensor as a string.
          */
         template<size_t R>
@@ -295,23 +332,23 @@ namespace jai {
         protected:
         public:
         /**
-         * The size of each dimension of the Tensor.
-         */
-        size_t dimensions[RANK];
-        /**
          * The total number of elements in the Tensor.
          * This is the size of each dimension multiplied together.
          */
         size_t total_size;
         /**
          * The pointer to the allocated data in this Tensor.
-         * The memory from `data` to `data + total_size - 1` will always be valid.s
+         * The memory from `data` to `data + total_size - 1` will always be valid.
          */
-        float* data;
+        float* data_;
+        /**
+         * The size of each dimension of the Tensor.
+         */
+        size_t dimensions[RANK];
     };
 
-    
-    /** 
+
+    /**
      * This represents a Tensor itself, which contains and manages all of it's own data.
      * Any instance of a Tensor, and the data contained within, is managed by itself.
      */
@@ -336,19 +373,19 @@ namespace jai {
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         Tensor( size_t dim, float fill );
-        /** 
+        /**
          * Defined for RANK>1 Tensors, constructs a Tensor with the given dimensions.
          * Throws an error if any value in `dims` is equal to 0.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         Tensor( const size_t (&dims)[RANK] );
-        /** 
+        /**
          * Defined for RANK>1 Tensors, constructs a Tensor with the given dimensions and with all values set to `fill`.
          * Throws an error if any value in `dims` is equal to 0.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         Tensor( const size_t (&dims)[RANK], float fill );
-        /** 
+        /**
          * Constructs a Tensor initialized with the given `elements`.
          * Throws an error if `elements` or any inner elements inside `elements` has a size of 0.
          * Throws an error if the `elements` are non-rectangular.
@@ -375,22 +412,22 @@ namespace jai {
          * Move constructor.
          */
         Tensor( Tensor<RANK>&& other );
-        /** 
+        /**
          * Destructor.
          */
         ~Tensor();
         /**
-         * Assignment operator. 
+         * Assignment operator.
          * Ensures that memory is freed when existing object is overwritten.
          */
         Tensor<RANK>& operator = ( const Tensor<RANK>& other );
         /**
-         * Assignment operator from BaseTensor. 
+         * Assignment operator from BaseTensor.
          * Ensures that memory is freed when existing object is overwritten.
          */
         Tensor<RANK>& operator = ( const BaseTensor<RANK>& other );
         /**
-         * Move assignment operator. 
+         * Move assignment operator.
          * Ensures that memory is freed when existing object is overwritten.
          */
         Tensor<RANK>& operator = ( Tensor<RANK>&& other );
@@ -430,8 +467,12 @@ namespace jai {
 
 
     /* Vector and Matrix type definitions */
-    using Vector = BaseTensor<1>;
-    using Matrix = BaseTensor<2>;
+    using BaseVector = BaseTensor<1>;
+    using Vector = Tensor<1>;
+    using VVector = VTensor<1>;
+    using BaseMatrix = BaseTensor<2>;
+    using Matrix = Tensor<2>;
+    using VMatrix = VTensor<2>;
 }
 
 
@@ -445,12 +486,12 @@ namespace jai {
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
     const float& BaseTensor<RANK>::operator [] ( const size_t index ) const {
-        return this->data[index];
+        return this->data_[index];
     }
-    template<size_t RANK> 
+    template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
     float& BaseTensor<RANK>::operator [] ( const size_t index ) {
-        return this->data[index];
+        return this->data_[index];
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
@@ -461,7 +502,7 @@ namespace jai {
             inner_tensor_total_size /= this->dimensions[i];
             index += inner_tensor_total_size * indexes[i];
         }
-        return this->data[index];
+        return this->data_[index];
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
@@ -472,7 +513,7 @@ namespace jai {
             inner_tensor_size /= this->dimensions[i];
             index += inner_tensor_size * indexes[i];
         }
-        return this->data[index];
+        return this->data_[index];
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
@@ -483,7 +524,7 @@ namespace jai {
         }
         const size_t inner_tensor_total_size = this->total_size / this->dimensions[0];
         inner_view.total_size = inner_tensor_total_size;
-        inner_view.data = this->data + inner_tensor_total_size*index;
+        inner_view.data_ = this->data_ + inner_tensor_total_size*index;
         return inner_view;
     }
     template<size_t RANK>
@@ -495,7 +536,7 @@ namespace jai {
         }
         const size_t inner_tensor_total_size = this->total_size / this->dimensions[0];
         inner_view.total_size = inner_tensor_total_size;
-        inner_view.data = this->data + inner_tensor_total_size*index;
+        inner_view.data_ = this->data_ + inner_tensor_total_size*index;
         return inner_view;
     }
 
@@ -506,7 +547,7 @@ namespace jai {
             view.dimensions[i] = this->dimensions[i];
         }
         view.total_size = this->total_size;
-        view.data = this->data;
+        view.data_ = this->data_;
         return view;
     }
     template<size_t RANK>
@@ -516,7 +557,7 @@ namespace jai {
             view.dimensions[i] = this->dimensions[i];
         }
         view.total_size = this->total_size;
-        view.data = this->data;
+        view.data_ = this->data_;
         return view;
     }
     template<size_t RANK>
@@ -527,7 +568,7 @@ namespace jai {
         }
         ranked_up_view.dimensions[RANK] = 1;
         ranked_up_view.total_size = this->total_size;
-        ranked_up_view.data = this->data;
+        ranked_up_view.data_ = this->data_;
         return ranked_up_view;
     }
     template<size_t RANK>
@@ -538,14 +579,14 @@ namespace jai {
         }
         ranked_up_view.dimensions[RANK] = 1;
         ranked_up_view.total_size = this->total_size;
-        ranked_up_view.data = this->data;
+        ranked_up_view.data_ = this->data_;
     }
     template<size_t RANK>
     const VTensor<1> BaseTensor<RANK>::flattened() const {
         VTensor<1> flattened_view;
         flattened_view.dimensions[0] = this->total_size;
         flattened_view.total_size = this->total_size;
-        flattened_view.data = this->data;
+        flattened_view.data_ = this->data_;
         return flattened_view;
     }
     template<size_t RANK>
@@ -553,24 +594,43 @@ namespace jai {
         VTensor<1> flattened_view;
         flattened_view.dimensions[0] = this->total_size;
         flattened_view.total_size = this->total_size;
-        flattened_view.data = this->data;
+        flattened_view.data_ = this->data_;
         return flattened_view;
     }
 
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator + ( const BaseTensor<RANK>& other ) const {
-        // Copy this to new Tensor and add other to it
-        Tensor<RANK> result(*this);
-        result.addTo(other);
-        // Return result Tensor
+        // Add the values in the Tensors together
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            result->data_[i] = this->data_[i] + other->data_[i];
+        }
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator - ( const BaseTensor<RANK>& other ) const {
-        // Copy this to new Tensor and subtract other from it
-        Tensor<RANK> result(*this);
-        result.subFrom(other);
-        // Return result Tensor
+        Tensor<RANK> result(this->dimensions);
+        // Subtract the values in this Tensor by the values in the other Tensor
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            result->data_[i] = this->data_[i] - other->data_[i];
+        }
+        return result;
+    }
+    template<size_t RANK>
+    Tensor<RANK> BaseTensor<RANK>::operator * ( const BaseTensor<RANK>& other ) const {
+        Tensor<RANK> result(this->dimensions);
+        // Multiply the values in the Tensors together
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            result->data_[i] = this->data_[i] * other->data_[i];
+        }
+        return result;
+    }
+    template<size_t RANK>
+    Tensor<RANK> BaseTensor<RANK>::operator / ( const BaseTensor<RANK>& other ) const {
+        Tensor<RANK> result(this->dimensions);
+        // Divide the values in this Tensor by the values in the other Tensor
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            result->data_[i] = this->data_[i] / other->data_[i];
+        }
         return result;
     }
     template<size_t RANK>
@@ -603,7 +663,7 @@ namespace jai {
         Tensor<RANK> result(*this);
         // Negate all elements in result and return it
         for( int i = 0; i < this->total_size; ++i ) {
-            result.data[i] *= -1;
+            result.data_[i] *= -1;
         }
         // Return result Tensor
         return result;
@@ -611,27 +671,27 @@ namespace jai {
 
     template<size_t RANK>
     void BaseTensor<RANK>::set( const BaseTensor<RANK>& tensor ) {
-        std::memcpy( this->data, tensor.data, this->total_size * sizeof(float) );
+        std::memcpy( this->data_, tensor.data_, this->total_size * sizeof(float) );
     }
     template<size_t RANK>
     void BaseTensor<RANK>::addTo( const BaseTensor<RANK>& other ) {
         // Add other's values
         for( size_t i = 0; i < this->total_size; ++i ) {
-            this->data[i] += other.data[i];
+            this->data_[i] += other.data_[i];
         }
     }
     template<size_t RANK>
     void BaseTensor<RANK>::subFrom( const BaseTensor<RANK>& other ) {
         // Subtract other's values
         for( size_t i = 0; i < this->total_size; ++i ) {
-            this->data[i] -= other.data[i];
+            this->data_[i] -= other.data_[i];
         }
     }
     template<size_t RANK>
     void BaseTensor<RANK>::scaleBy( const float scale ) {
         // Multiply by scale
         for( size_t i = 0; i < this->total_size; ++i ) {
-            this->data[i] *= scale;
+            this->data_[i] *= scale;
         }
     }
     template<size_t RANK>
@@ -685,17 +745,23 @@ namespace jai {
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
     float BaseTensor<RANK>::squaredMag() const {
         float sqrd_sum = 0;
-        for( size_t i = 0; i < this->dimensions[0]; ++i ) {
+        for( size_t i = 0; i < this->total_size; ++i ) {
             sqrd_sum += data[i] * data[i];
         }
         return sqrd_sum;
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
+    Tensor<1> BaseTensor<RANK>::normalized() const {
+        const float mag = this->mag();
+        return (*this) / mag;
+    }
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 1), int>::type>
     float BaseTensor<RANK>::dot( const BaseTensor<1>& other ) const {
         float sum = 0;
-        for( size_t i = 0; i < this->dimensions[0]; ++i ) {
-            sum += this->data[i] * other.data[i];
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            sum += this->data_[i] * other.data_[i];
         }
         return sum;
     }
@@ -708,7 +774,7 @@ namespace jai {
         result[2] = this[0] * other[1] - this[1] * other[0];
         return result;
     }
-    
+
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 2), int>::type>
     Tensor<2> BaseTensor<RANK>::transpose() {
@@ -758,6 +824,14 @@ namespace jai {
         return RANK;
     }
     template<size_t RANK>
+    size_t BaseTensor<RANK>::totalSize() const {
+        return this->total_size;
+    }
+    template<size_t RANK>
+    const float* BaseTensor<RANK>::data() const {
+        return this->data_;
+    }
+    template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
     size_t BaseTensor<RANK>::size() const {
         return this->total_size;
@@ -766,10 +840,6 @@ namespace jai {
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
     size_t BaseTensor<RANK>::size( const size_t dimension ) const {
         return this->dimensions[dimension];
-    }
-    template<size_t RANK>
-    size_t BaseTensor<RANK>::totalSize() const {
-        return this->total_size;
     }
 
     template<size_t RANK>
@@ -788,7 +858,7 @@ namespace jai {
         }
 
         for( size_t i = 0; i < this->total_size; ++i ) {
-            if( this->data[i] != other.data[i] ) {
+            if( this->data_[i] != other.data_[i] ) {
                 return false;
             }
         }
@@ -826,7 +896,7 @@ namespace jai {
         }
         // Allocate no memory
         this->total_size = 0;
-        this->data = nullptr;
+        this->data_ = nullptr;
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
@@ -836,7 +906,7 @@ namespace jai {
         }
         this->dimensions[0] = dim;
         this->total_size = dim;
-        this->data = new float[dim];
+        this->data_ = new float[dim];
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type>
@@ -846,8 +916,8 @@ namespace jai {
         }
         this->dimensions[0] = dim;
         this->total_size = dim;
-        this->data = new float[dim];
-        std::fill(this->data, this->data + this->total_size, fill);
+        this->data_ = new float[dim];
+        std::fill(this->data_, this->data_ + this->total_size, fill);
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
@@ -864,7 +934,7 @@ namespace jai {
         }
         // Allocate memory for data
         this->total_size = total_size;
-        this->data = new float[total_size];
+        this->data_ = new float[total_size];
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
@@ -881,8 +951,8 @@ namespace jai {
         }
         // Allocate memory for data and fill with value
         this->total_size = total_size;
-        this->data = new float[total_size];
-        std::fill(this->data, this->data + this->total_size, fill);
+        this->data_ = new float[total_size];
+        std::fill(this->data_, this->data_ + this->total_size, fill);
     }
     template<size_t RANK>
     Tensor<RANK>::Tensor( InitializerElements<RANK> elements ) {
@@ -904,9 +974,9 @@ namespace jai {
         }
 
         // Allocate memory
-        this->data = new float[this->total_size];
+        this->data_ = new float[this->total_size];
         // Assign data from flattened initializer elements
-        float* data_ptr = this->data;
+        float* data_ptr = this->data_;
         Tensor<RANK>::flattenInitializerElements(elements, data_ptr);
     }
     template<size_t RANK>
@@ -916,7 +986,7 @@ namespace jai {
         if( dim1 == 0 ) {
             throw std::invalid_argument("The first dimension size is less than 1.");
         }
-        
+
         const std::reference_wrapper<const BaseTensor<RANK-1>>* tensor_refs = elements.begin();
         // Copy dimensions from the first Tensor
         this->dimensions[0] = dim1;
@@ -934,10 +1004,10 @@ namespace jai {
         // Allocate memory for data
         const size_t inner_tensor_size = tensor_refs[0].get().total_size;
         this->total_size = dim1 * inner_tensor_size;
-        this->data = new float[this->total_size];
+        this->data_ = new float[this->total_size];
         // Copy data from Tensors into this
         for( size_t i = 0; i < dim1; ++i ) {
-            memcpy(this->data + (i * inner_tensor_size), tensor_refs[i].get().data, inner_tensor_size * sizeof(float));
+            memcpy(this->data_ + (i * inner_tensor_size), tensor_refs[i].get().data_, inner_tensor_size * sizeof(float));
         }
     }
 
@@ -949,8 +1019,8 @@ namespace jai {
         }
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
-        this->data = new float[other.total_size];
-        std::memcpy( this->data, other.data, this->total_size * sizeof(float) );
+        this->data_ = new float[other.total_size];
+        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
     }
     template<size_t RANK>
     Tensor<RANK>::Tensor( const BaseTensor<RANK>& other ) {
@@ -960,8 +1030,8 @@ namespace jai {
         }
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
-        this->data = new float[other.total_size];
-        std::memcpy( this->data, other.data, this->total_size * sizeof(float) );
+        this->data_ = new float[other.total_size];
+        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
     }
     template<size_t RANK>
     Tensor<RANK>::Tensor( Tensor<RANK>&& other ) {
@@ -971,18 +1041,18 @@ namespace jai {
         }
         // Set other's data pointer to this
         this->total_size = other.total_size;
-        this->data = other.data;
+        this->data_ = other.data_;
 
         // Clear other tensor
         for( size_t i = 0; i < RANK; ++i ) {
             other.dimensions[i] = 0;
         }
         other.total_size = 0;
-        other.data = nullptr;
+        other.data_ = nullptr;
     }
     template<size_t RANK>
     Tensor<RANK>::~Tensor() {
-        delete this->data;
+        delete this->data_;
     }
     template<size_t RANK>
     Tensor<RANK>& Tensor<RANK>::operator = ( const Tensor<RANK>& other ) {
@@ -991,7 +1061,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this Tensor.
-        delete this->data;
+        delete this->data_;
 
         // Copy dimensions
         for( size_t i = 0; i < RANK; ++i ) {
@@ -999,8 +1069,8 @@ namespace jai {
         }
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
-        this->data = new float[other.total_size];
-        std::memcpy( this->data, other.data, this->total_size * sizeof(float) );
+        this->data_ = new float[other.total_size];
+        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
 
         return *this;
     }
@@ -1011,7 +1081,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this Tensor.
-        delete this->data;
+        delete this->data_;
 
         // Copy dimensions
         for( size_t i = 0; i < RANK; ++i ) {
@@ -1019,8 +1089,8 @@ namespace jai {
         }
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
-        this->data = new float[other.total_size];
-        std::memcpy( this->data, other.data, this->total_size * sizeof(float) );
+        this->data_ = new float[other.total_size];
+        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
 
         return *this;
     }
@@ -1031,7 +1101,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this Tensor.
-        delete this->data;
+        delete this->data_;
 
         // Copy dimensions
         for( size_t i = 0; i < RANK; ++i ) {
@@ -1039,20 +1109,20 @@ namespace jai {
         }
         // Set other's data pointer to this
         this->total_size = other.total_size;
-        this->data = other.data;
+        this->data_ = other.data_;
 
         // Clear other tensor
         for( size_t i = 0; i < RANK; ++i ) {
             other.dimensions[i] = 0;
         }
         other.total_size = 0;
-        other.data = nullptr;
+        other.data_ = nullptr;
     }
 
     template<size_t RANK>
     size_t Tensor<RANK>::countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] ) {
         dims[0] = elements.size();
-        
+
         // RANK=1 case
         if constexpr( RANK == 1 ) {
             return elements.size();
@@ -1069,7 +1139,7 @@ namespace jai {
         if( elements.size() != dims[0] ) {
             return false;
         }
-        
+
         // RANK=1 case
         if constexpr( RANK == 1 ) {
             return true;
@@ -1081,7 +1151,7 @@ namespace jai {
                 if( !Tensor<RANK-1>::checkInitializerElements(inner_elements, dims + 1) ) {
                     return false;
                 }
-            } 
+            }
             return true;
         }
     }
@@ -1105,7 +1175,7 @@ namespace jai {
 
 
     /* VTensor Implementation */
-    
+
     template<size_t RANK>
     VTensor<RANK>::VTensor() {
         // Set all dimensions to 0
@@ -1114,7 +1184,7 @@ namespace jai {
         }
         // Allocate no memory
         this->total_size = 0;
-        this->data = nullptr;
+        this->data_ = nullptr;
     }
     template<size_t RANK>
     VTensor<RANK>::VTensor( const VTensor<RANK>& other ) {
@@ -1122,7 +1192,7 @@ namespace jai {
             this->dimensions[i] = other.dimensions[i];
         }
         this->total_size = other.total_size;
-        this->data = other.data;
+        this->data_ = other.data_;
     }
     template<size_t RANK>
     VTensor<RANK>& VTensor<RANK>::operator = ( const VTensor<RANK>& other ) {
@@ -1130,7 +1200,7 @@ namespace jai {
             this->dimensions[i] = other.dimensions[i];
         }
         this->total_size = other.total_size;
-        this->data = other.data;
+        this->data_ = other.data_;
 
         return *this;
     }
