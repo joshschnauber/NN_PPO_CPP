@@ -42,6 +42,9 @@ namespace jai {
     class Tensor;
     template<size_t RANK>
     class VTensor;
+    template<size_t RANK>
+    class RaggedTensor;
+
 
 
     /**
@@ -187,23 +190,48 @@ namespace jai {
          * Negates all of the elements in `this` Tensor and returns the result.
          */
         Tensor<RANK> operator - () const;
+        /**
+         * Returns a copy of `this` Tensor with the same dimensions, but with no data set.
+         */
+        Tensor<RANK> emptied() const;
+
+        /**
+         * Returns true if the `other` Tensor has the same dimensions as `this` Tensor, and false otherwise.
+         */
+        bool isSameSize( const BaseTensor<RANK>& other ) const;
+        /**
+         * Returns true if the `other` Tensor is equal to `this` Tensor, and false otherwise.
+         */
+        bool operator == ( const BaseTensor<RANK>& other ) const;
+        /**
+         * Returns true if the `other` Tensor is not equal to `this` Tensor, and false otherwise.
+         */
+        bool operator != ( const BaseTensor<RANK>& other ) const;
 
         /* General mutators */
         public:
 
-        /* This sets the values in `this` Tensor to the values in `tensor`.
+        /**
+         * This sets the values in `this` Tensor to the values in `tensor`.
          * The given `tensor` must have the same dimensions as `this` Tensor.
          */
         void set( const BaseTensor<RANK>& tensor );
-        /* Adds all of the elements in the other Tensor to all of the elements in this Tensor.
-         * The other Tensor must be the same total size as this Tensor, but does not necessarily have to have the same dimensions.
+        /** 
+         * Adds all of the elements in the other Tensor to all of the elements in `this`
+         * Tensor.
+         * The `other` Tensor must be the same total size as `this` Tensor, but does not
+         * necessarily have to have the same dimensions.
          */
         void addTo( const BaseTensor<RANK>& other );
-        /* Subtracts all of the elements in the other Tensor from all of the elements in this Tensor.
-         * The other Tensor must be the same total size as this Tensor, but does not necessarily have to have the same dimensions.
+        /**
+         * Subtracts all of the elements in the other Tensor from all of the elements in
+         * `this` Tensor.
+         * The `other` Tensor must be the same total size as `this` Tensor, but does not 
+         * necessarily have to have the same dimensions.
          */
         void subFrom( const BaseTensor<RANK>& other );
-        /* Multiples all of the elements in this Tensor with the given scale.
+        /** 
+         * Multiples all of the elements in `this` Tensor with the given `scale`.
          */
         void scaleBy( float scale );
         /**
@@ -311,24 +339,12 @@ namespace jai {
         size_t size( size_t dimension ) const;
 
         /**
-         * Returns true if the `other` Tensor has the same dimensions as `this` Tensor, and false otherwise.
-         */
-        bool isSameSize( const BaseTensor<RANK>& other ) const;
-        /**
-         * Returns true if the `other` Tensor is equal to `this` Tensor, and false otherwise.
-         */
-        bool operator == ( const BaseTensor<RANK>& other ) const;
-        /**
-         * Returns true if the `other` Tensor is not equal to `this` Tensor, and false otherwise.
-         */
-        bool operator != ( const BaseTensor<RANK>& other ) const;
-
-        /**
          * Prints out the Tensor as a string.
          */
         template<size_t R>
         friend std::ostream& operator << ( std::ostream& fs, const BaseTensor<R>& t );
 
+        /* Member Variables */
         protected:
         public:
         /**
@@ -345,6 +361,14 @@ namespace jai {
          * The size of each dimension of the Tensor.
          */
         size_t dimensions[RANK];
+
+        /* Friend Classes */
+        public:
+        
+        /**
+         * Declare RaggedTensor as a friend of BaseTensor so that it can manag
+         */
+        friend class RaggedTensor<RANK>;
     };
 
 
@@ -368,32 +392,34 @@ namespace jai {
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         Tensor( size_t dim );
         /**
-         * Defined for RANK=1 Tensors, constructs a Tensor with the given dimensions and with all values set to `fill`.
+         * Defined for RANK=1 Tensors, constructs a Tensor with the given dimensions and
+         * with all values set to `fill`.
          * Throws an error if `dim` is equal to 0.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0>
         Tensor( size_t dim, float fill );
         /**
-         * Defined for RANK>1 Tensors, constructs a Tensor with the given dimensions.
+         * Constructs a Tensor with the given dimensions.
          * Throws an error if any value in `dims` is equal to 0.
          */
-        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         Tensor( const size_t (&dims)[RANK] );
         /**
-         * Defined for RANK>1 Tensors, constructs a Tensor with the given dimensions and with all values set to `fill`.
+         * Constructs a Tensor with the given dimensions and with all values set to
+         * `fill`.
          * Throws an error if any value in `dims` is equal to 0.
          */
-        template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0>
         Tensor( const size_t (&dims)[RANK], float fill );
         /**
          * Constructs a Tensor initialized with the given `elements`.
-         * Throws an error if `elements` or any inner elements inside `elements` has a size of 0.
+         * Throws an error if `elements` or any inner elements inside `elements` has a
+         * size of 0.
          * Throws an error if the `elements` are non-rectangular.
          */
         Tensor( InitializerElements<RANK> elements );
         /**
-         * Defined for RANK>1 Tensors, constructs a Tensor initialized with the given `Tensor<RANK-1>` elements.
-         * The size of the first dimension is the size of `elements`.
+         * Defined for RANK>1 Tensors, constructs a Tensor initialized with the given
+         * `Tensor<RANK-1>` elements. The size of the first dimension is the size of
+         * `elements`.
          * Throws an error if `elements` has a size of 0.
          * Throws an error if any of the Tensors in `elements` have differing dimensions.
          */
@@ -433,7 +459,7 @@ namespace jai {
         Tensor<RANK>& operator = ( Tensor<RANK>&& other );
 
         /* Helper functions */
-        private:
+        protected:
         public:
         static size_t countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] );
         static bool checkInitializerElements( const InitializerElements<RANK>& elements, const size_t dims[RANK] );
@@ -466,20 +492,295 @@ namespace jai {
     };
 
 
+    /**
+     * This represents a tensor whose first dimensions elements do not have the same
+     * size. Each inner tensor has a rank of RANK-1, but can have differing sizes.
+     * NOTE: Name stolen from PyTorch, though unsure if functionally similar.
+     */
+    template<size_t RANK>
+    class RaggedTensor {
+        // Ensure that Ragged Tensor RANK cannot be less than 1 (must have 2 or more dimensions)
+        static_assert(RANK > 1, "Ragged Tensor rank cannot be less than 1.");
+
+        /* Constructors */
+        public:
+
+        /**
+         * Constructs an empty RaggedTensor with a size of 0 in each dimension.
+         */
+        RaggedTensor();
+        /**
+         * Defined for RANK=2 RaggedTensors, constructs a RaggedTensor containing inner
+         * Tensors with the dimensions specified in `inner_tensor_dims`.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type>
+        RaggedTensor( std::initializer_list<size_t> inner_tensor_dims );
+        /**
+         * Constructs a RaggedTensor containing inner Tensors with the set of dimensions
+         * specified in `inner_tensor_dims`.
+         */
+        RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims );
+        /**
+         * Constructs a RaggedTensor containing the tensors specified in `elements`.
+         */
+        RaggedTensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements );
+
+        /**
+         * Copy constructor.
+         */
+        RaggedTensor( const RaggedTensor<RANK>& other );
+        /**
+         * Copy constructor from BaseTensor.
+         */
+        RaggedTensor( const BaseTensor<RANK>& other );
+        /**
+         * Move constructor.
+         */
+        RaggedTensor( RaggedTensor<RANK>&& other );
+        /**
+         * Destructor.
+         */
+        ~RaggedTensor();
+        /**
+         * Assignment operator.
+         * Ensures that memory is freed when existing object is overwritten.
+         */
+        RaggedTensor<RANK>& operator = ( const RaggedTensor<RANK>& other );
+        /**
+         * Assignment operator from BaseTensor.
+         * Ensures that memory is freed when existing object is overwritten.
+         */
+        RaggedTensor<RANK>& operator = ( const BaseTensor<RANK>& other );
+        /**
+         * Move assignment operator.
+         * Ensures that memory is freed when existing object is overwritten.
+         */
+        RaggedTensor<RANK>& operator = ( RaggedTensor<RANK>&& other );
+
+        /* Accessors */
+        public:
+
+        /**
+         * This returns the inner Tensor at the given index in the first dimension.
+         */
+        const VTensor<RANK-1> operator [] ( size_t index ) const;
+        /**
+         * This returns a mutable reference to the inner Tensor at the given index in the
+         * first dimension.
+         */
+        VTensor<RANK-1> operator [] ( size_t index );
+
+        /* Binary Operations */
+        public:
+
+        /**
+         * Adds all of the elements in the `other` RaggedTensor to all of the elements in
+         * `this` RaggedTensor and returns the result.
+         * Both RaggedTensors must be the same total size, but do not necessarily have to
+         * have the same dimensions.
+         * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
+         */
+        RaggedTensor<RANK> operator + ( const RaggedTensor<RANK>& other ) const;
+        /**
+         * Subtracts all of the elements in the `other` RaggedTensor from all of the
+         * elements in `this` RaggedTensor and returns the result.
+         * Both RaggedTensors must be the same total size, but do not necessarily have to
+         * have the same dimensions.
+         * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
+         */
+        RaggedTensor<RANK> operator - ( const RaggedTensor<RANK>& other ) const;
+        /**
+         * Multiplies all of the elements in the `other` RaggedTensor with all of the
+         * elements in `this` RaggedTensor and returns the result.
+         * Both RaggedTensors must be the same total size, but do not necessarily have to
+         * have the same dimensions.
+         * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
+         */
+        RaggedTensor<RANK> operator * ( const RaggedTensor<RANK>& other ) const;
+        /**
+         * Divides all of the elements in the `other` RaggedTensor from all of the
+         * elements in `this` RaggedTensor and returns the result.
+         * Both RaggedTensors must be the same total size, but do not necessarily have to
+         * have the same dimensions.
+         * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
+         */
+        RaggedTensor<RANK> operator / ( const RaggedTensor<RANK>& other ) const;
+        /**
+         * Multiplies all of the elements in `this` RaggedTensor by `scale` and returns
+         * the result.
+        */
+        template<size_t R>
+        friend RaggedTensor<R> operator * ( const RaggedTensor<R>& tensor, float scale );
+        /**
+         * Multiplies all of the elements in `this` RaggedTensor by `scale` and returns
+         * the result.
+        */
+        template<size_t R>
+        friend RaggedTensor<R> operator * ( float scale, const RaggedTensor<R>& tensor );
+        /**
+         * Divides all of the elements in `this` RaggedTensor by `scale` and returns the
+         * result.
+        */
+        RaggedTensor<RANK> operator / ( float scale ) const;
+        /**
+         * Negates all of the elements in `this` RaggedTensor and returns the result.
+         */
+        RaggedTensor<RANK> operator - () const;
+        /**
+         * Returns a copy of `this` RaggedTensor with the same dimensions, but with no
+         * data set.
+         */
+        RaggedTensor<RANK> emptied() const;
+
+        /**
+         * Returns true if the `other` RaggedTensor has the same dimensions as `this` RaggedTensor, and false otherwise.
+         */
+        bool isSameSize( const RaggedTensor<RANK>& other ) const;
+        /**
+         * Returns true if the `other` RaggedTensor is equal to `this` RaggedTensor, and false otherwise.
+         */
+        bool operator == ( const RaggedTensor<RANK>& other ) const;
+        /**
+         * Returns true if the `other` RaggedTensor is not equal to `this` RaggedTensor, and false otherwise.
+         */
+        bool operator != ( const RaggedTensor<RANK>& other ) const;
+        
+        /* General mutators */
+        public:
+
+        /**
+         * This sets the values in `this` RaggedTensor to the values in `tensor`.
+         * The given `tensor` must have the same dimensions as `this` RaggedTensor.
+         */
+        void set( const RaggedTensor<RANK>& tensor );
+        /** 
+         * Adds all of the elements in the other RaggedTensor to all of the elements in
+         * `this` RaggedTensor.
+         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
+         * but does not necessarily have to have the same dimensions.
+         */
+        void addTo( const RaggedTensor<RANK>& other );
+        /**
+         * Subtracts all of the elements in the other RaggedTensor from all of the
+         * elements in `this` RaggedTensor.
+         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
+         * but does not necessarily have to have the same dimensions.
+         */
+        void subFrom( const RaggedTensor<RANK>& other );
+        /** 
+         * Multiples all of the elements in `this` RaggedTensor with the given `scale`.
+         */
+        void scaleBy( float scale );
+
+        /* Getters */
+        public:
+
+        /**
+         * Returns the rank of the tensor (the number of dimensions).
+         * NOTE: This is NOT the same as the matrix rank.
+         */
+        size_t rank() const;
+        /**
+         * Returns the total size of the RaggedTensor (the total number of elements).
+         */
+        size_t totalSize() const;
+        /**
+         * The pointer to the allocated data in this RaggedTensor.
+         */
+        const float* data() const;
+        /**
+         * Returns the size of the first dimension of this RaggedTensor.
+         */
+        size_t dim1Size() const;
+
+        /* Member Variables */
+        protected:
+
+        /**
+         * The total number of elements in the RaggedTensor.
+         * This is the sum of the total size of each inner Tensor.
+         */
+        size_t total_size;
+        /**
+         * The pointer to the allocated data in this Tensor.
+         * The memory from `data` to `data + total_size - 1` will always be valid.
+         */
+        float* data_;
+        /**
+         * The size of the first dimension. More simply, the number of inner tensors
+         */
+        size_t dimension1;
+        /**
+         * The View Tensors which keep track of the size and memory locations of the
+         * inner tensors.
+         */
+        VTensor<RANK-1>* inner_tensors;
+    };
+
+
     /* Vector and Matrix type definitions */
+
     using BaseVector = BaseTensor<1>;
     using Vector = Tensor<1>;
     using VVector = VTensor<1>;
     using BaseMatrix = BaseTensor<2>;
     using Matrix = Tensor<2>;
     using VMatrix = VTensor<2>;
+    using RaggedMatrix = RaggedTensor<2>;
 }
 
 
 
 /* Implementation */
 namespace jai {
+    /* Implementation Helper Functions */
+
+    namespace {
+        inline void setValues( const float* src, float* dest, const size_t size ) {
+            std::memcpy( dest, src, size * sizeof(float) );
+        }
+        inline void addValues( const float* src_A, const float* src_B, float* dest, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                dest[i] = src_A[i] + src_B[i];
+            }
+        }
+        inline void subtractValues( const float* src_A, const float* src_B, float* dest, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                dest[i] = src_A[i] - src_B[i];
+            }
+        }
+        inline void multiplyValues( const float* src_A, const float* src_B, float* dest, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                dest[i] = src_A[i] * src_B[i];
+            }
+        }
+        inline void divideValues( const float* src_A, const float* src_B, float* dest, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                dest[i] = src_A[i] / src_B[i];
+            }
+        }
+        inline void multiplyValuesByScalar( const float* src_A, const float B, float* dest, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                dest[i] = src_A[i] * B;
+            }
+        }
+        inline void negateValues( const float* src_A, float* dest, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                dest[i] = -src_A[i];
+            }
+        }
+        inline bool compareValuesForEquality( const float* src_A, const float* src_B, const size_t size ) {
+            for( size_t i = 0; i < size; ++i ) {
+                if( src_A[i] != src_B[i] ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    
     /* BaseTensor Implementation */
+
     template<size_t RANK>
     BaseTensor<RANK>::BaseTensor() { }
 
@@ -600,99 +901,113 @@ namespace jai {
 
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator + ( const BaseTensor<RANK>& other ) const {
+        Tensor<RANK> result(this->dimensions);
         // Add the values in the Tensors together
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            result->data_[i] = this->data_[i] + other->data_[i];
-        }
+        addValues(this->data_, other.data_, result.data_, this->total_size);
+
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator - ( const BaseTensor<RANK>& other ) const {
         Tensor<RANK> result(this->dimensions);
         // Subtract the values in this Tensor by the values in the other Tensor
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            result->data_[i] = this->data_[i] - other->data_[i];
-        }
+        subtractValues(this->data_, other.data_, result.data_, this->total_size);
+
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator * ( const BaseTensor<RANK>& other ) const {
         Tensor<RANK> result(this->dimensions);
         // Multiply the values in the Tensors together
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            result->data_[i] = this->data_[i] * other->data_[i];
-        }
+        multiplyValues(this->data_, other.data_, result.data_, this->total_size);
+
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator / ( const BaseTensor<RANK>& other ) const {
         Tensor<RANK> result(this->dimensions);
         // Divide the values in this Tensor by the values in the other Tensor
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            result->data_[i] = this->data_[i] / other->data_[i];
-        }
+        divideValues(this->data_, other.data_, result.data_, this->total_size);
+
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> operator * ( const BaseTensor<RANK>& tensor, const float scale ) {
-        // Copy this to new Tensor and multiply it by scale
-        Tensor<RANK> result(tensor);
-        result.scaleBy(scale);
-        // Return result Tensor
+        Tensor<RANK> result(tensor.dimensions);
+        // Multiply the values in the Tensor by the scale
+        multiplyValuesByScalar(tensor.data_, scale, result.data_, tensor.total_size);
+
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> operator * ( const float scale, const BaseTensor<RANK>& tensor ) {
-        // Copy this to new Tensor and multiply it by scale
-        Tensor<RANK> result(tensor);
-        result.scaleBy(scale);
-        // Return result Tensor
+        Tensor<RANK> result(tensor.dimensions);
+        // Multiply the values in the Tensor by the scale
+        multiplyValuesByScalar(tensor.data_, scale, result.data_, tensor.total_size);
+        
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator / ( const float scale ) const {
-        // Copy this to new Tensor and divide it by scale
-        Tensor<RANK> result(*this);
-        result.scaleBy(1.0f / scale);
-        // Return result Tensor
+        Tensor<RANK> result(this->dimensions);
+        // Multiply the values in this Tensor by the inverted scale
+        multiplyValuesByScalar(this->data_, (1.0f / scale), result.data_, this->total_size);
+
         return result;
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator - () const {
-        // Copy this to new Tensor
-        Tensor<RANK> result(*this);
-        // Negate all elements in result and return it
-        for( int i = 0; i < this->total_size; ++i ) {
-            result.data_[i] *= -1;
-        }
-        // Return result Tensor
+        Tensor<RANK> result(this->dimensions);
+        // Negate the values in this Tensor
+        negateValues(this->data_, result.data_, this->total_size);
+
         return result;
+    }
+    template<size_t RANK>
+    Tensor<RANK> BaseTensor<RANK>::emptied() const {
+        return Tensor<RANK>(this->dimensions);
+    } 
+
+    template<size_t RANK>
+    bool BaseTensor<RANK>::isSameSize( const BaseTensor<RANK>& other ) const {
+        for( size_t i = 0; i < RANK; ++i ) {
+            if( this->dimensions[i] != other.dimensions[i] ) {
+                return false;
+            }
+        }
+        return true;
+    }
+    template<size_t RANK>
+    bool BaseTensor<RANK>::operator == ( const BaseTensor<RANK>& other ) const {
+        if( !this->isSameSize(other) ) {
+            return false;
+        }
+
+        return compareValuesForEquality(this->data_, other.data_, this->total_size);
+    }
+    template<size_t RANK>
+    bool BaseTensor<RANK>::operator != ( const BaseTensor<RANK>& other ) const {
+        return !(*this == other);
     }
 
     template<size_t RANK>
     void BaseTensor<RANK>::set( const BaseTensor<RANK>& tensor ) {
-        std::memcpy( this->data_, tensor.data_, this->total_size * sizeof(float) );
+        setValues(tensor.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
     void BaseTensor<RANK>::addTo( const BaseTensor<RANK>& other ) {
         // Add other's values
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            this->data_[i] += other.data_[i];
-        }
+        addValues(this->data_, other.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
     void BaseTensor<RANK>::subFrom( const BaseTensor<RANK>& other ) {
         // Subtract other's values
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            this->data_[i] -= other.data_[i];
-        }
+        subtractValues(this->data_, other.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
     void BaseTensor<RANK>::scaleBy( const float scale ) {
         // Multiply by scale
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            this->data_[i] *= scale;
-        }
+        multiplyValuesByScalar(this->data_, scale, this->data_, this->total_size);
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type, typename Func>
@@ -746,7 +1061,7 @@ namespace jai {
     float BaseTensor<RANK>::squaredMag() const {
         float sqrd_sum = 0;
         for( size_t i = 0; i < this->total_size; ++i ) {
-            sqrd_sum += data[i] * data[i];
+            sqrd_sum += this->data_[i] * this->data_[i];
         }
         return sqrd_sum;
     }
@@ -843,34 +1158,6 @@ namespace jai {
     }
 
     template<size_t RANK>
-    bool BaseTensor<RANK>::isSameSize( const BaseTensor<RANK>& other ) const {
-        for( size_t i = 0; i < RANK; ++i ) {
-            if( this->dimensions[i] != other.dimensions[i] ) {
-                return false;
-            }
-        }
-        return true;
-    }
-    template<size_t RANK>
-    bool BaseTensor<RANK>::operator == ( const BaseTensor<RANK>& other ) const {
-        if( !this->isSameSize(other) ) {
-            return false;
-        }
-
-        for( size_t i = 0; i < this->total_size; ++i ) {
-            if( this->data_[i] != other.data_[i] ) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-    template<size_t RANK>
-    bool BaseTensor<RANK>::operator != ( const BaseTensor<RANK>& other ) const {
-        return !(*this == other);
-    }
-
-    template<size_t RANK>
     std::ostream& operator << ( std::ostream& fs, const BaseTensor<RANK>& t ) {
         // Open Tensor
         fs << "{ ";
@@ -920,7 +1207,6 @@ namespace jai {
         std::fill(this->data_, this->data_ + this->total_size, fill);
     }
     template<size_t RANK>
-    template<size_t R, typename std::enable_if<(R > 1), int>::type>
     Tensor<RANK>::Tensor( const size_t (&dims)[RANK] ) {
         // Copy dimensions
         size_t total_size = 1;
@@ -937,7 +1223,6 @@ namespace jai {
         this->data_ = new float[total_size];
     }
     template<size_t RANK>
-    template<size_t R, typename std::enable_if<(R > 1), int>::type>
     Tensor<RANK>::Tensor( const size_t (&dims)[RANK], const float fill ) {
         // Copy dimensions
         size_t total_size = 1;
@@ -996,7 +1281,7 @@ namespace jai {
         // Check that all Tensors have the same dimensions
         for( size_t i = 1; i < dim1; ++i ) {
             for( size_t j = 0; j < RANK; ++j ) {
-                if( this->dimensions[j] != tensor_refs[i].get().dimensions[j] ) {
+                if( this->dimensions[j+1] != tensor_refs[i].get().dimensions[j] ) {
                     throw std::invalid_argument("Two or more dimension sizes do not match.");
                 }
             }
@@ -1007,7 +1292,7 @@ namespace jai {
         this->data_ = new float[this->total_size];
         // Copy data from Tensors into this
         for( size_t i = 0; i < dim1; ++i ) {
-            memcpy(this->data_ + (i * inner_tensor_size), tensor_refs[i].get().data_, inner_tensor_size * sizeof(float));
+            setValues(tensor_refs[i].get().data_, this->data_ + (i * inner_tensor_size), inner_tensor_size);  
         }
     }
 
@@ -1020,7 +1305,7 @@ namespace jai {
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
         this->data_ = new float[other.total_size];
-        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
+        setValues(other.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
     Tensor<RANK>::Tensor( const BaseTensor<RANK>& other ) {
@@ -1031,7 +1316,7 @@ namespace jai {
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
         this->data_ = new float[other.total_size];
-        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
+        setValues(other.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
     Tensor<RANK>::Tensor( Tensor<RANK>&& other ) {
@@ -1070,7 +1355,7 @@ namespace jai {
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
         this->data_ = new float[other.total_size];
-        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
+        setValues(other.data_, this->data_, this->total_size);
 
         return *this;
     }
@@ -1090,7 +1375,7 @@ namespace jai {
         // Allocate new memory and copy it over
         this->total_size = other.total_size;
         this->data_ = new float[other.total_size];
-        std::memcpy( this->data_, other.data_, this->total_size * sizeof(float) );
+        setValues(other.data_, this->data_, this->total_size);
 
         return *this;
     }
@@ -1117,6 +1402,8 @@ namespace jai {
         }
         other.total_size = 0;
         other.data_ = nullptr;
+
+        return *this;
     }
 
     template<size_t RANK>
@@ -1203,6 +1490,420 @@ namespace jai {
         this->data_ = other.data_;
 
         return *this;
+    }
+
+
+    /* RaggedTensor Implementation */
+
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor() {
+        this->total_size = 0;
+        this->data_ = nullptr;
+        this->dimension1 = 0;
+        this->inner_tensors = nullptr;
+    }    
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 2), int>::type>
+    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t> inner_tensor_dims ) {
+        const size_t dim1 = inner_tensor_dims.size();
+
+        // Allocate space for array of inner VTensors
+        this->inner_tensor = new VTensor<RANK-1>[dim1];
+        // Copy over dimension sizes and count the total size
+        const size_t* inner_tensor_dims_ptrs = inner_tensor_dims.begin();
+        size_t total_size = 0;
+        for( size_t i = 0; i < dim1; ++i ) {
+            const size_t inner_tensor_size = inner_tensor_dims_ptrs[0];
+            // Copy over dimension size
+            this->inner_tensors[i].dimensions[0] = inner_tensor_size;
+            // Set inner tensor total size
+            this->inner_tensors[i].total_size = inner_tensor_size;
+
+            total_size += inner_tensor_size;
+        }
+        this->total_size = total_size;
+
+        // Allocate space for data
+        this->data_ = new float[total_size];
+
+        // Set first dimension size
+        this->dimension1 = dim1;
+        // Set the starting position of each inner Tensor
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            this->inner_tensors[i].data_ = starting_pos;
+            starting_pos += this->inner_tensors[i].total_size;
+        }
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims ) {
+        const size_t dim1 = inner_tensor_dims.size();
+
+        // Allocate space for array of inner VTensors
+        this->inner_tensor = new VTensor<RANK-1>[dim1];
+        // Copy over dimension sizes and count the total size
+        const size_t (*inner_tensor_dims_ptrs)[RANK-1] = inner_tensor_dims.begin();
+        size_t total_size = 0;
+        for( size_t i = 0; i < dim1; ++i ) {
+            size_t inner_tensor_size = 1;
+            // Copy over dimension sizes
+            for( size_t j = 0; j < RANK-1; ++j ) {
+                const size_t dim = inner_tensor_dims_ptrs[i][j];
+                this->inner_tensors[i].dimensions[j] = dim;
+                inner_tensor_size *= dim;
+            }
+            // Set inner tensor total size
+            this->inner_tensors[i].total_size = inner_tensor_size;
+
+            total_size += inner_tensor_size;
+        }
+        this->total_size = total_size;
+
+        // Allocate space for data
+        this->data_ = new float[total_size];
+
+        // Set first dimension size
+        this->dimension1 = dim1;
+        // Set the starting position of each inner Tensor
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            this->inner_tensors[i].data_ = starting_pos;
+            starting_pos += this->inner_tensors[i].total_size;
+        }
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements ) {
+        const size_t dim1 = elements.size();
+
+        // Allocate space for array of inner VTensors
+        this->inner_tensor = new VTensor<RANK-1>[dim1];
+        // Copy over dimension sizes and count the total size
+        const std::reference_wrapper<const BaseTensor<RANK-1>>* inner_tensor_ptrs = elements.begin();
+        size_t total_size = 0;
+        for( size_t i = 0; i < dim1; ++i ) {
+            // Copy over dimension sizes
+            for( size_t j = 0; j < RANK-1; ++j ) {
+                const size_t dim = inner_tensor_ptrs[i].get().dimensions[j];
+                this->inner_tensors[i].dimensions[j] = dim;
+            }
+            // Set inner tensor total size
+            const size_t inner_tensor_size = this->inner_tensors[i].total_size;
+            this->inner_tensors[i].total_size = inner_tensor_size;
+
+            total_size += inner_tensor_size;
+        }
+        this->total_size = total_size;
+
+        // Allocate space for data
+        this->data_ = new float[total_size];
+
+        // Set first dimension size
+        this->dimension1 = dim1;
+        // Set the starting position of each inner Tensor
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            this->inner_tensors[i].data_ = starting_pos;
+            this->inner_tensors[i].set(inner_tensor_ptrs[i]);
+
+            starting_pos += this->inner_tensors[i].total_size;
+        }
+    }
+
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( const RaggedTensor<RANK>& other ) {
+        this->total_size = other.total_size;
+        // Allocate space for data and copy over
+        this->data_ = new float[other.total_size];
+        setValues(other.data_, this->data_, this->total_size);
+        
+        const size_t dim1 = other.dimension1;
+        this->dimension1 = dim1;
+        // Allocate space for inner tensors and copy over
+        this->inner_tensors = new VTensor<RANK-1>[dim1];
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            this->inner_tensors[i] = other.inner_tensors[i];
+            // Set a pointer from the newly allocated data
+            this->inner_tensors[i].data_ = starting_pos;
+            starting_pos += other.inner_tensors[i].total_size;
+        }
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( const BaseTensor<RANK>& other ) {
+        this->total_size = other.total_size;
+        // Allocate space for data and copy over
+        this->data_ = new float[other.total_size];
+        setValues(other.data_, this->data_, this->total_size);
+
+        const size_t dim1 = other.dimensions[0];
+        this->dimension1 = dim1;
+        // Allocate space for inner tensors and copy over
+        this->inner_tensors = new VTensor<RANK-1>[dim1];
+        const size_t inner_tensor_total_size = other.total_size / dim1;
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            // Copy over sizes
+            this->inner_tensors[i].total_size = inner_tensor_total_size;
+            for( size_t j = 1; j < RANK; ++j ) {
+                this->inner_tensors[i].dimensions[j-1] = other.dimensions[j];
+            }
+
+            // Set a pointer from the newly allocated data
+            this->inner_tensors[i].data_ = starting_pos;
+            starting_pos += inner_tensor_total_size;
+        }
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( RaggedTensor<RANK>&& other ) {
+        // Move data to this RaggedTensor
+        this->total_size = other.total_size;
+        this->data_ = other->data_;
+        this->dimension1 = other->dimension1;
+        this->inner_tensors = other.inner_tensors;
+
+        // Clear data from other RaggedTensor
+        other.total_size = 0;
+        other.data_ = nullptr;
+        other.dimension1 = 0;
+        other.inner_tensors = nullptr;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>::~RaggedTensor() {
+        delete this->inner_tensors;
+        delete this->data_;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator = ( const RaggedTensor<RANK>& other ) {
+        // Check for self assignment
+        if( this == &other ) {
+            return *this;
+        }
+        // Free the previous data held in this RaggedTensor.
+        delete this->data_;
+
+        this->total_size = other.total_size;
+        // Allocate space for data and copy over
+        this->data_ = new float[other.total_size];
+        setValues(other.data_, this->data_, this->total_size);
+
+        const size_t dim1 = other.dimension1;
+        this->dimension1 = dim1;
+        // Allocate space for inner tensors and copy over
+        this->inner_tensors = new VTensor<RANK-1>[dim1];
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            this->inner_tensors[i] = other.inner_tensors[i];
+            // Set a pointer from the newly allocated data
+            this->inner_tensors[i].data_ = starting_pos;
+            starting_pos += other.inner_tensors[i].total_size;
+        }
+
+        return *this;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator = ( const BaseTensor<RANK>& other ) {
+        // Check for self assignment
+        if( this == &other ) {
+            return *this;
+        }
+        // Free the previous data held in this RaggedTensor.
+        delete this->data_;
+
+        this->total_size = other.total_size;
+        // Allocate space for data and copy over
+        this->data_ = new float[other.total_size];
+        setValues(other.data_, this->data_, this->total_size);
+
+        const size_t dim1 = other.dimensions[0];
+        this->dimension1 = dim1;
+        // Allocate space for inner tensors and copy over
+        this->inner_tensors = new VTensor<RANK-1>[dim1];
+        const size_t inner_tensor_total_size = other.total_size / dim1;
+        float* starting_pos = this->data_;
+        for( size_t i = 0; i < dim1; ++i ) {
+            // Copy over sizes
+            this->inner_tensors[i].total_size = inner_tensor_total_size;
+            for( size_t j = 1; j < RANK; ++j ) {
+                this->inner_tensors[i].dimensions[j-1] = other.dimensions[j];
+            }
+
+            // Set a pointer from the newly allocated data
+            this->inner_tensors[i].data_ = starting_pos;
+            starting_pos += inner_tensor_total_size;
+        }
+
+        return *this;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator = ( RaggedTensor<RANK>&& other ) {
+        // Check for self assignment
+        if( this == &other ) {
+            return *this;
+        }
+        // Free the previous data held in this RaggedTensor.
+        delete this->data_;
+
+        // Move data to this RaggedTensor
+        this->total_size = other.total_size;
+        this->data_ = other->data_;
+        this->dimension1 = other->dimension1;
+        this->inner_tensors = other.inner_tensors;
+
+        // Clear data from other RaggedTensor
+        other.total_size = 0;
+        other.data_ = nullptr;
+        other.dimension1 = 0;
+        other.inner_tensors = nullptr;
+
+        return *this;
+    }
+
+    template<size_t RANK>
+    const VTensor<RANK-1> RaggedTensor<RANK>::operator [] ( size_t index ) const {
+        return this->inner_tensors[index];
+    }
+    template<size_t RANK>
+    VTensor<RANK-1> RaggedTensor<RANK>::operator [] ( size_t index ) {
+        return this->inner_tensors[index];
+    }
+
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::operator + ( const RaggedTensor<RANK>& other ) const {
+        RaggedTensor<RANK> result = this->emptied();
+        // Add the values in the Tensors together
+        addValues(this->data_, other.data_, result.data_, this->total_size);
+
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::operator - ( const RaggedTensor<RANK>& other ) const {
+        RaggedTensor<RANK> result = this->emptied();
+        // Subtract the values in this Tensor by the values in the other Tensor
+        subtractValues(this->data_, other.data_, result.data_, this->total_size);
+
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::operator * ( const RaggedTensor<RANK>& other ) const {
+        RaggedTensor<RANK> result = this->emptied();
+        // Multiply the values in the Tensors together
+        multiplyValues(this->data_, other.data_, result.data_, this->total_size);
+
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::operator / ( const RaggedTensor<RANK>& other ) const {
+        RaggedTensor<RANK> result = this->emptied();
+        // Divide the values in this Tensor by the values in the other Tensor
+        divideValues(this->data_, other.data_, result.data_, this->total_size);
+
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> operator * ( const RaggedTensor<RANK>& tensor, const float scale ) {
+        RaggedTensor<RANK> result = tensor.emptied();
+        // Multiply the values in the Tensor by the scale
+        multiplyValuesByScalar(tensor.data_, scale, result.data_, tensor.total_size);
+
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> operator * ( const float scale, const RaggedTensor<RANK>& tensor ) {
+        RaggedTensor<RANK> result = tensor.emptied();
+        // Multiply the values in the Tensor by the scale
+        multiplyValuesByScalar(tensor.data_, scale, result.data_, tensor.total_size);
+        
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::operator / ( const float scale ) const {
+        RaggedTensor<RANK> result = this->emptied();
+        // Multiply the values in this Tensor by the inverted scale
+        multiplyValuesByScalar(this->data_, (1.0f / scale), result.data_, this->total_size);
+
+        return result;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::operator - () const {
+        RaggedTensor<RANK> result = this->emptied();
+        // Negate the values in this Tensor
+        negateValues(this->data_, result.data_, this->total_size);
+
+        return result;
+    }
+    /* TODO: This doesn't work */
+    template<size_t RANK>
+    RaggedTensor<RANK> RaggedTensor<RANK>::emptied() const {
+        size_t inner_tensor_dims[this->dimension1][RANK-1];
+        // Copy over dimensions
+        for( size_t i = 0; i < this->dimension1; ++i ) {
+            for( size_t j  = 0; j < RANK-1; ++j ) {
+                inner_tensor_dims[i][j] = this->inner_tensors[i].dimensions[j + 1];
+            }
+        }
+        return RaggedTensor<RANK>(inner_tensor_dims);
+    } 
+
+    template<size_t RANK>
+    bool RaggedTensor<RANK>::isSameSize( const RaggedTensor<RANK>& other ) const {
+        if( this->dimension1 != other.dimension1 ) {
+            return false;
+        }
+        for( size_t i = 0; i < this->dimension1; ++i ) {
+            if( !this->inner_tensors[i].isSameSize(other.inner_tensors[i]) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+    template<size_t RANK>
+    bool RaggedTensor<RANK>::operator == ( const RaggedTensor<RANK>& other ) const {
+        if( !this->isSameSize(other) ) {
+            return false;
+        }
+
+        return compareValuesForEquality(this->data_, other.data_, this->total_size);
+    }
+    template<size_t RANK>
+    bool RaggedTensor<RANK>::operator != ( const RaggedTensor<RANK>& other ) const {
+        return !(*this == other);
+    }
+
+    template<size_t RANK>
+    void RaggedTensor<RANK>::set( const RaggedTensor<RANK>& tensor ) {
+        setValues(tensor.data_, this->data_, this->total_size);
+    }
+    template<size_t RANK>
+    void RaggedTensor<RANK>::addTo( const RaggedTensor<RANK>& other ) {
+        // Add other's values
+        addValues(this->data_, other.data_, this->data_, this->total_size);
+    }
+    template<size_t RANK>
+    void RaggedTensor<RANK>::subFrom( const RaggedTensor<RANK>& other ) {
+        // Subtract other's values
+        subtractValues(this->data_, other.data_, this->data_, this->total_size);
+    }
+    template<size_t RANK>
+    void RaggedTensor<RANK>::scaleBy( const float scale ) {
+        // Multiply by scale
+        multiplyValuesByScalar(this->data_, scale, this->data_, this->total_size);
+    }
+    
+    template<size_t RANK>
+    size_t RaggedTensor<RANK>::rank() const {
+        return RANK;
+    }
+    template<size_t RANK>
+    size_t RaggedTensor<RANK>::totalSize() const {
+        return this->total_size;
+    }
+    template<size_t RANK>
+    size_t RaggedTensor<RANK>::dim1Size() const {
+        return this->dimension1;
+    }
+    template<size_t RANK>
+    const float* RaggedTensor<RANK>::data() const {
+        return this->data_;
     }
 }
 

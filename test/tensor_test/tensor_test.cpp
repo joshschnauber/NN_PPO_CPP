@@ -13,10 +13,10 @@
 
 
 /**
- * Unit tests.
+ * Runs test on the member functions of BaseTensor, Tensor, and VTensor
  */
-int main() {
-    START_TEST("Tensor")
+void test_base_tensor() {
+    START_TEST("Base Tensor")
 
 
     /* 1. Test RANK=1 constructor and assignment */
@@ -496,4 +496,28 @@ int main() {
 
 
     END_TEST
+}
+
+
+
+/**
+ * Runs test on the member functions of BaseTensor, Tensor, and VTensor
+ */
+void test_ragged_tensor() {
+    START_TEST("Ragged Tensor")
+
+
+    /* TODO: Tests for RaggedTensor member functions */
+
+    
+    END_TEST
+}
+
+
+
+int main() {
+    /* Run each set of tests */
+    test_base_tensor();
+
+    test_ragged_tensor();
 }

@@ -350,6 +350,9 @@ namespace jai {
         ) const;
     };
 
+
+
+
     // Struct that contains the loss function and it's derivative
     // Only calculates loss using a network's outputted values and the actual values
     struct LossFunction {
@@ -466,6 +469,8 @@ namespace jai {
         size_t output_layer_size;
         size_t hidden_layer_size;
         size_t hidden_layer_count;
+        jai::RaggedTensor<3> weights;
+        jai::RaggedMatrix bias;
         jai::Vector weights;
         jai::Vector bias;
         std::unique_ptr<Activation> hidden_activation;

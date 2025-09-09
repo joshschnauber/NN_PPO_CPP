@@ -135,6 +135,9 @@ void test_activation() {
 void test_layer_activation() {
     START_TEST("LayerActivation")
 
+        const size_t dim1 = 20;
+        auto t = new size_t[dim1][10];
+
 
 
     END_TEST
