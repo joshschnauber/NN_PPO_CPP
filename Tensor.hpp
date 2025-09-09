@@ -514,10 +514,25 @@ namespace jai {
          * Tensors with the dimensions specified in `inner_tensor_dims`.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type>
+        RaggedTensor( const size_t dim1_size, const size_t* inner_tensor_dims );
+        /**
+         * Constructs a RaggedTensor containing inner Tensors with the set of dimensions
+         * specified in `inner_tensor_dims`.
+         */
+        RaggedTensor( const size_t dim1_size, const size_t (*inner_tensor_dims)[RANK-1] );
+        /**
+         * Defined for RANK=2 RaggedTensors, constructs a RaggedTensor containing inner
+         * Tensors with the dimensions specified in `inner_tensor_dims`.
+         * Identical to the constructor using pointers, but does not require a separate
+         * dimension 1 size field.
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type>
         RaggedTensor( std::initializer_list<size_t> inner_tensor_dims );
         /**
          * Constructs a RaggedTensor containing inner Tensors with the set of dimensions
          * specified in `inner_tensor_dims`.
+         * Identical to the constructor using pointers, but does not require a separate
+         * dimension 1 size field.
          */
         RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims );
         /**
@@ -1501,19 +1516,16 @@ namespace jai {
         this->data_ = nullptr;
         this->dimension1 = 0;
         this->inner_tensors = nullptr;
-    }    
+    }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 2), int>::type>
-    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t> inner_tensor_dims ) {
-        const size_t dim1 = inner_tensor_dims.size();
-
+    RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t* inner_tensor_dims ) {
         // Allocate space for array of inner VTensors
-        this->inner_tensor = new VTensor<RANK-1>[dim1];
+        this->inner_tensor = new VTensor<1>[dim1_size];
         // Copy over dimension sizes and count the total size
-        const size_t* inner_tensor_dims_ptrs = inner_tensor_dims.begin();
         size_t total_size = 0;
-        for( size_t i = 0; i < dim1; ++i ) {
-            const size_t inner_tensor_size = inner_tensor_dims_ptrs[0];
+        for( size_t i = 0; i < dim1_size; ++i ) {
+            const size_t inner_tensor_size = inner_tensor_dims[i];
             // Copy over dimension size
             this->inner_tensors[i].dimensions[0] = inner_tensor_size;
             // Set inner tensor total size
@@ -1527,28 +1539,25 @@ namespace jai {
         this->data_ = new float[total_size];
 
         // Set first dimension size
-        this->dimension1 = dim1;
+        this->dimension1 = dim1_size;
         // Set the starting position of each inner Tensor
         float* starting_pos = this->data_;
-        for( size_t i = 0; i < dim1; ++i ) {
+        for( size_t i = 0; i < dim1_size; ++i ) {
             this->inner_tensors[i].data_ = starting_pos;
             starting_pos += this->inner_tensors[i].total_size;
         }
     }
     template<size_t RANK>
-    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims ) {
-        const size_t dim1 = inner_tensor_dims.size();
-
+    RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t (*inner_tensor_dims)[RANK-1] ) {
         // Allocate space for array of inner VTensors
-        this->inner_tensor = new VTensor<RANK-1>[dim1];
+        this->inner_tensor = new VTensor<RANK-1>[dim1_size];
         // Copy over dimension sizes and count the total size
-        const size_t (*inner_tensor_dims_ptrs)[RANK-1] = inner_tensor_dims.begin();
         size_t total_size = 0;
-        for( size_t i = 0; i < dim1; ++i ) {
+        for( size_t i = 0; i < dim1_size; ++i ) {
             size_t inner_tensor_size = 1;
             // Copy over dimension sizes
             for( size_t j = 0; j < RANK-1; ++j ) {
-                const size_t dim = inner_tensor_dims_ptrs[i][j];
+                const size_t dim = inner_tensor_dims[i][j];
                 this->inner_tensors[i].dimensions[j] = dim;
                 inner_tensor_size *= dim;
             }
@@ -1563,14 +1572,21 @@ namespace jai {
         this->data_ = new float[total_size];
 
         // Set first dimension size
-        this->dimension1 = dim1;
+        this->dimension1 = dim1_size;
         // Set the starting position of each inner Tensor
         float* starting_pos = this->data_;
-        for( size_t i = 0; i < dim1; ++i ) {
+        for( size_t i = 0; i < dim1_size; ++i ) {
             this->inner_tensors[i].data_ = starting_pos;
             starting_pos += this->inner_tensors[i].total_size;
         }
     }
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 2), int>::type>
+    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t> inner_tensor_dims ) 
+        : RaggedTensor<RANK>(inner_tensor_dims.size(), inner_tensor_dims.begin()) { }
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims )
+        : RaggedTensor<RANK>(inner_tensor_dims.size(), inner_tensor_dims.begin()) { }
     template<size_t RANK>
     RaggedTensor<RANK>::RaggedTensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements ) {
         const size_t dim1 = elements.size();
@@ -1831,17 +1847,16 @@ namespace jai {
 
         return result;
     }
-    /* TODO: This doesn't work */
     template<size_t RANK>
     RaggedTensor<RANK> RaggedTensor<RANK>::emptied() const {
         size_t inner_tensor_dims[this->dimension1][RANK-1];
         // Copy over dimensions
         for( size_t i = 0; i < this->dimension1; ++i ) {
             for( size_t j  = 0; j < RANK-1; ++j ) {
-                inner_tensor_dims[i][j] = this->inner_tensors[i].dimensions[j + 1];
+                inner_tensor_dims[i][j] = this->inner_tensors[i].dimensions[1];
             }
         }
-        return RaggedTensor<RANK>(inner_tensor_dims);
+        return RaggedTensor<RANK>(this->dimension1, inner_tensor_dims);
     } 
 
     template<size_t RANK>

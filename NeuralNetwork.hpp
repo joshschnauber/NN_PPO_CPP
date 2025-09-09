@@ -444,9 +444,9 @@ namespace jai {
         // Get sizes for initializing external arrays
         inline size_t getInputLayerSize() const     { return input_layer_size; }
         inline size_t getOutputLayerSize() const    { return output_layer_size; }
-        inline size_t getPropagateNodeCount() const { return bias.size(); }
-        inline size_t getWeightCount() const        { return weights.size(); }
-        inline size_t getBiasCount() const          { return bias.size(); }
+        inline size_t getPropagateNodeCount() const { return bias.totalSize(); }
+        inline size_t getWeightCount() const        { return weights.totalSize(); }
+        inline size_t getBiasCount() const          { return bias.totalSize(); }
         inline size_t getHiddenLayerCount() const   { return hidden_layer_count; }
         inline size_t getHiddenLayerSize() const    { return hidden_layer_size; }
 
@@ -471,8 +471,6 @@ namespace jai {
         size_t hidden_layer_count;
         jai::RaggedTensor<3> weights;
         jai::RaggedMatrix bias;
-        jai::Vector weights;
-        jai::Vector bias;
         std::unique_ptr<Activation> hidden_activation;
         std::unique_ptr<LayerActivation> output_layer_activation;
         // Cached values from propagateStore() or backpropagateStore()
