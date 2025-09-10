@@ -367,13 +367,30 @@ namespace jai {
 
 
 
+    /**
+     * 
+     */
+    class DataStream {
+        virtual Vector getInput() = 0;
+        virtual Vector getLoss_D() = 0;
+    };
+
+
+
     class NeuralNetwork {
+        /* Inner Structs */
         public:
+
+        /**
+         * Struct containing the size of the network
+         */
         struct NetworkSize {
             size_t hidden_layer_size;
             size_t hidden_layer_count;
         };
-        // Struct containing hyperparameters for training
+        /**
+         * Struct containing hyperparameters for training
+         */
         struct Hyperparameters {
             size_t epochs =                 1;
             size_t batch_size =             SIZE_MAX;
@@ -383,30 +400,55 @@ namespace jai {
             float learning_rate =           1e-2f;
         };
         
+        /* Constructors */
         public:
-        // Constructors
-        NeuralNetwork();
-        NeuralNetwork(  size_t input_layer_size, size_t output_layer_size,
-                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation()) );
-        NeuralNetwork(  size_t input_layer_size, size_t output_layer_size, size_t hidden_layer_size, size_t hidden_layer_count,
-                        const Activation& hidden_activation = ReLUActivation(), const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation()) );
 
-        // Sets random weights between min and max
+        NeuralNetwork();
+        /**
+         * 
+         */
+        NeuralNetwork(  
+            const size_t input_layer_size, 
+            const size_t output_layer_size, 
+            const size_t hidden_layer_size, 
+            const size_t hidden_layer_count,
+            const Activation& hidden_activation = ReLUActivation(), 
+            const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation())
+        );
+        NeuralNetwork(
+            const RaggedTensor<3>& weights,
+            const RaggedMatrix& bias,
+            const Activation& hidden_activation,
+            const LayerActivation& output_layer_activation
+        );
+
+        /* Mutators */
+        public:
+
+        /** 
+         * Sets random weights between min and max
+         */
         void randomInit(const float min = -1, const float max = 1);
-        // Sets random weights based on Kaiming initialization
+        /** 
+         * Sets random weights based on Kaiming initialization
+         */
         void kaimingInit();
+        /** 
+         * Sets random weights based on Xavier initialization
+         */
+        void xavierInit();
 
         // Propagate the signals from the inputs into the outputs, and store each value at each node, before and after the activation function
         // Returns a pointer to the outputs, which is stored internally
-        const float* propagateStore(const float* inputs);
+        const Vector& propagateStore( const Vector& inputs );
         // Propagate the signals from the inputs into the outputs
-        void propagate(const float* inputs, float* outputs) const;
+        void propagate(const Vector& inputs, Vector& outputs) const;
         
         // Find the gradients with the node values obtained from propagateStore() and store the gradients
         // The loss_d is the derivative of the loss function in terms of the outputs
-        void backpropagateStore( const float* inputs, const float* loss_d );
+        void backpropagateStore( const Vector& inputs, const Vector& loss_d );
         // Find the gradients with the node values obtained from propagateStore() and update the bias and weights
-        void backpropagate( const float* inputs, const float* loss_d, const float regularization_strength = 1e-5f, const float learning_rate = 1e-2f );
+        void backpropagate( const Vector& inputs, const Vector& loss_d, const float regularization_strength = 1e-5f, const float learning_rate = 1e-2f );
 
         // Apply L2 regularization to gradients
         void applyRegularization( const float regularization_strength);
@@ -416,16 +458,17 @@ namespace jai {
         
         // Updates the network with backpropagation to bring the output closer to the actual output from the given input
         // Returns the loss (or average loss)
-        float train( const float* inputs, const float* actual_outputs, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
-        float train( const float* inputs, const float* actual_outputs, const LossFunction& loss_fn, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
+        float train( const Vector& inputs, const Vector& actual_outputs, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
+        float train( const Vector& inputs, const Vector& actual_outputs, const LossFunction& loss_fn, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
         // Updates the network like train(), but trains all of the datapoints at once, with the given batch size.
-        jai::Vector batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, 
+        jai::Vector batchTrain( const Matrix& inputs, const Matrix& actual_outputs, 
                                        const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
                                        const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
-        jai::Vector batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
+        jai::Vector batchTrain( const Matrix inputs, const Matrix actual_outputs, const LossFunction& loss_fn, 
                                        const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
                                        const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
 
+        
 
         // Finds the start pointer for the weights in a given layer
         // Layer 0 contains edges between the input and first hidden layer
@@ -438,12 +481,9 @@ namespace jai {
         // Gets the number of weight edges pointing into the given bias node
         inline int getNodeWeightCount(const int node_index) const;
 
-        // Gets the pointer to the weights and bias'
-        inline const float* getWeightData() const   { return weights.data(); }
-        inline const float* getBiasData() const     { return bias.data(); }
+
         // Get sizes for initializing external arrays
-        inline size_t getInputLayerSize() const     { return input_layer_size; }
-        inline size_t getOutputLayerSize() const    { return output_layer_size; }
+        
         inline size_t getPropagateNodeCount() const { return bias.totalSize(); }
         inline size_t getWeightCount() const        { return weights.totalSize(); }
         inline size_t getBiasCount() const          { return bias.totalSize(); }
@@ -462,19 +502,80 @@ namespace jai {
         // Sets all weights and bias' to 0
         void recalculate();
 
+        /* Getters */
+        public:
+        
+        /**
+         * 
+         */
+        size_t getInputLayerSize() const;
+        /**
+         * 
+         */
+        size_t getOutputLayerSize() const;
+        /**
+         * 
+         */
+        size_t getHiddenLayerSize( const size_t hidden_layer_index ) const;
+        /**
+         * 
+         */
+        size_t getHiddenLayerCount() const;
+        /**
+         * 
+         */
+        const RaggedTensor<3>& getWeights() const;
+        /**
+         * 
+         */
+        const RaggedMatrix& getBias() const;
 
+        /* Network values */
         private:
-        // Network values
+
+        /**
+         * 
+         */
         size_t input_layer_size;
+        /**
+         * 
+         */
         size_t output_layer_size;
+        /**
+         * 
+         */
         size_t hidden_layer_size;
+        /**
+         * 
+         */
         size_t hidden_layer_count;
+        /**
+         * 
+         */
         jai::RaggedTensor<3> weights;
+        /**
+         * 
+         */
         jai::RaggedMatrix bias;
+        /**
+         * 
+         */
         std::unique_ptr<Activation> hidden_activation;
+        /**
+         * 
+         */
         std::unique_ptr<LayerActivation> output_layer_activation;
-        // Cached values from propagateStore() or backpropagateStore()
+
+        /* Cached values from propagation or backpropagation */
+        private:
+
+        /**
+         * 
+         */
         jai::Vector propagate_vals_cache;
+        /**
+         * 
+         */
         jai::Vector gradient_vals_cache;
     };
 }
@@ -791,7 +892,8 @@ namespace jai {
     }
 
 
-    // LOSS FUNCTIONS
+    /* LossFunction */
+
     const LossFunction SQUARED_DIFF( const size_t output_size ) {
         return {
             output_size,
@@ -834,16 +936,26 @@ namespace jai {
     };
 
 
-    // NETWORK CONSTRUCTORS
-    NeuralNetwork::NeuralNetwork( ) { 
+    /* DataStream */
+
+
+    /* NeuralNetwork */
+
+    NeuralNetwork::NeuralNetwork() { 
         // Set sizes to 0
         this->input_layer_size = 0;
         this->output_layer_size = 0;
         this->hidden_layer_size = 0;
         this->hidden_layer_count = 0;
     }
-    NeuralNetwork::NeuralNetwork(   size_t input_layer_size, size_t output_layer_size, size_t hidden_layer_size, size_t hidden_layer_count,
-                                    const Activation& hidden_activation, const LayerActivation& output_layer_activation ) {
+    NeuralNetwork::NeuralNetwork(   
+        const size_t input_layer_size, 
+        const size_t output_layer_size, 
+        const size_t hidden_layer_size, 
+        const size_t hidden_layer_count,
+        const Activation& hidden_activation, 
+        const LayerActivation& output_layer_activation 
+    ) {
         // Check if network sizes are invalid
         if( input_layer_size < 1  ||  output_layer_size < 1 ) {
             throw std::invalid_argument("Cannot have input or output layer with size 0.");

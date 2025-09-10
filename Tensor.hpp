@@ -346,7 +346,7 @@ namespace jai {
 
         /* Member Variables */
         protected:
-        public:
+        
         /**
          * The total number of elements in the Tensor.
          * This is the size of each dimension multiplied together.
@@ -366,9 +366,21 @@ namespace jai {
         public:
         
         /**
-         * Declare RaggedTensor as a friend of BaseTensor so that it can manag
+         * Declare friend classes so that base/derived classes can access each others
+         * internal data.
          */
-        friend class RaggedTensor<RANK>;
+        template<size_t R>
+        friend class BaseTensor;
+        template<size_t R>
+        friend class Tensor;
+        template<size_t R>
+        friend class VTensor;
+        /**
+         * Declare RaggedTensor as a friend of BaseTensor so that it can view and manage
+         * internal Tensor and VTensor data.
+         */
+        template<size_t R>
+        friend class RaggedTensor;
     };
 
 
@@ -377,7 +389,7 @@ namespace jai {
      * Any instance of a Tensor, and the data contained within, is managed by itself.
      */
     template<size_t RANK>
-    class Tensor :  public BaseTensor<RANK> {
+    class Tensor : public BaseTensor<RANK> {
         /* Constructors */
         public:
 
@@ -457,13 +469,6 @@ namespace jai {
          * Ensures that memory is freed when existing object is overwritten.
          */
         Tensor<RANK>& operator = ( Tensor<RANK>&& other );
-
-        /* Helper functions */
-        protected:
-        public:
-        static size_t countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] );
-        static bool checkInitializerElements( const InitializerElements<RANK>& elements, const size_t dims[RANK] );
-        static void flattenInitializerElements( const InitializerElements<RANK>& elements, float*& data );
     };
 
 
@@ -473,7 +478,7 @@ namespace jai {
      * Despite its name, a VTensor can be modified, but it will also modify the Tensor it is backed by.
      */
     template<size_t RANK>
-    class VTensor :  public BaseTensor<RANK> {
+    class VTensor : public BaseTensor<RANK> {
         /* Constructors */
         public:
 
@@ -748,7 +753,7 @@ namespace jai {
 
 /* Implementation */
 namespace jai {
-    /* Implementation Helper Functions */
+    /* Implementation Helper Functions For Bulk Operations */
 
     namespace {
         inline void setValues( const float* src, float* dest, const size_t size ) {
@@ -794,6 +799,7 @@ namespace jai {
         }
     }
     
+
     /* BaseTensor Implementation */
 
     template<size_t RANK>
@@ -1188,6 +1194,63 @@ namespace jai {
     }
 
 
+    /* Implementation Helper Functions For Handling Recursive std::initializer_lists */
+
+    template<size_t RANK>
+    size_t countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] ) {
+        dims[0] = elements.size();
+
+        // RANK=1 case
+        if constexpr( RANK == 1 ) {
+            return elements.size();
+        }
+
+        // RANK>1 case
+        else {
+            const size_t inner_size = countInitializerElements<RANK-1>(*elements.begin(), dims + 1);
+            return elements.size() * inner_size;
+        }
+    }
+    template<size_t RANK>
+    bool checkInitializerElements( const InitializerElements<RANK>& elements, const size_t dims[RANK] ) {
+        if( elements.size() != dims[0] ) {
+            return false;
+        }
+
+        // RANK=1 case
+        if constexpr( RANK == 1 ) {
+            return true;
+        }
+
+        // RANK>1 case
+        else {
+            for( const auto& inner_elements : elements ) {
+                if( !checkInitializerElements<RANK-1>(inner_elements, dims + 1) ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    template<size_t RANK>
+    void flattenInitializerElements( const InitializerElements<RANK>& elements, float*& data ) {
+        // RANK=1 case
+        if constexpr( RANK == 1 ) {
+            for( const float element : elements ) {
+                *data = element;
+                ++data;
+            }
+        }
+
+        // RANK>1 case
+        else {
+            for( const auto& inner_elements : elements ) {
+                flattenInitializerElements<RANK-1>(inner_elements, data);
+            }
+        }
+    }
+
+
     /* Tensor Implementation */
 
     template<size_t RANK>
@@ -1261,8 +1324,8 @@ namespace jai {
         }
 
         // Recursively count the total size of the initializer elements
-        this->total_size = Tensor<RANK>::countInitializerElements(elements, this->dimensions);
-        if( !Tensor<RANK>::checkInitializerElements(elements, this->dimensions) ) {
+        this->total_size = countInitializerElements<RANK>(elements, this->dimensions);
+        if( !checkInitializerElements<RANK>(elements, this->dimensions) ) {
             throw std::invalid_argument("The given initializer elements are not rectangular");
         }
 
@@ -1277,7 +1340,7 @@ namespace jai {
         this->data_ = new float[this->total_size];
         // Assign data from flattened initializer elements
         float* data_ptr = this->data_;
-        Tensor<RANK>::flattenInitializerElements(elements, data_ptr);
+        flattenInitializerElements<RANK>(elements, data_ptr);
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
@@ -1419,60 +1482,6 @@ namespace jai {
         other.data_ = nullptr;
 
         return *this;
-    }
-
-    template<size_t RANK>
-    size_t Tensor<RANK>::countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] ) {
-        dims[0] = elements.size();
-
-        // RANK=1 case
-        if constexpr( RANK == 1 ) {
-            return elements.size();
-        }
-
-        // RANK>1 case
-        else {
-            const size_t inner_size = Tensor<RANK-1>::countInitializerElements(*elements.begin(), dims + 1);
-            return elements.size() * inner_size;
-        }
-    }
-    template<size_t RANK>
-    bool Tensor<RANK>::checkInitializerElements( const InitializerElements<RANK>& elements, const size_t dims[RANK] ) {
-        if( elements.size() != dims[0] ) {
-            return false;
-        }
-
-        // RANK=1 case
-        if constexpr( RANK == 1 ) {
-            return true;
-        }
-
-        // RANK>1 case
-        else {
-            for( const auto& inner_elements : elements ) {
-                if( !Tensor<RANK-1>::checkInitializerElements(inner_elements, dims + 1) ) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-    template<size_t RANK>
-    void Tensor<RANK>::flattenInitializerElements( const InitializerElements<RANK>& elements, float*& data ) {
-        // RANK=1 case
-        if constexpr( RANK == 1 ) {
-            for( const float element : elements ) {
-                *data = element;
-                ++data;
-            }
-        }
-
-        // RANK>1 case
-        else {
-            for( const auto& inner_elements : elements ) {
-                Tensor<RANK-1>::flattenInitializerElements(inner_elements, data);
-            }
-        }
     }
 
 
