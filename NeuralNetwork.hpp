@@ -329,7 +329,7 @@ namespace jai {
          * The derivative of the activation function on Vector `x` using the .
          * Places the result in Vector `y`.
          */
-        virtual void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y ) const = 0;
+        virtual void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const = 0;
         /**
          * Creates a `std::unique_ptr` that manages a new copy of `this` layer activation.
          */
@@ -368,32 +368,42 @@ namespace jai {
 
 
     /**
-     * 
+     * Abstract class for retreiving data for training a neural network over time.
      */
     class DataStream {
-        virtual Vector getInput() = 0;
-        virtual Vector getLoss_D() = 0;
+        /**
+         * Gets an input to propagate through a neural network and places it into
+         * `training_input`.
+         */
+        virtual Vector getInput( 
+            Vector& training_input 
+        ) = 0;
+        /**
+         * Gets the derivative of the loss function, with respect to the outputs of
+         * the neural network, and places them into `loss_D`.
+         */
+        virtual Vector getLoss_D(
+            const Vector& training_input,
+            const Vector& training_output,
+            Vector& loss_D
+        ) = 0;
     };
 
 
-
+    /**
+     * Class...
+     */
     class NeuralNetwork {
         /* Inner Structs */
         public:
 
         /**
-         * Struct containing the size of the network
-         */
-        struct NetworkSize {
-            size_t hidden_layer_size;
-            size_t hidden_layer_count;
-        };
-        /**
-         * Struct containing hyperparameters for training
+         * Struct representing the hyperparameters for training a neural network
          */
         struct Hyperparameters {
-            size_t epochs =                 1;
-            size_t batch_size =             SIZE_MAX;
+            size_t epochs =                 1;    
+            float error_tolerance =         0.1f; // Do we ignore error_tolerance if epochs > 0 ?
+            size_t batch_size =             1000;
             float regularization_strength = 1e-5f;
             float momentum_decay =          0.900f;
             float sqr_momentum_decay =      0.999f;
@@ -403,18 +413,25 @@ namespace jai {
         /* Constructors */
         public:
 
+        /**
+         * Contructs an empty NeuralNetwork with no layers.
+         */
         NeuralNetwork();
         /**
-         * 
+         * Constructs a NeuralNetwork with the given sizes and activations, with no
+         * weights or bias' set.
          */
         NeuralNetwork(  
             const size_t input_layer_size, 
             const size_t output_layer_size, 
-            const size_t hidden_layer_size, 
             const size_t hidden_layer_count,
+            const size_t hidden_layer_size,
             const Activation& hidden_activation = ReLUActivation(), 
             const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation())
         );
+        /**
+         * Constructs a NeuralNetwork using already existing weights and bias'.
+         */
         NeuralNetwork(
             const RaggedTensor<3>& weights,
             const RaggedMatrix& bias,
@@ -426,45 +443,85 @@ namespace jai {
         public:
 
         /** 
-         * Sets random weights between min and max
+         * Sets random network weights and bias' between min and max
          */
-        void randomInit(const float min = -1, const float max = 1);
+        void randomInit( const float min = -1, const float max = 1 );
         /** 
-         * Sets random weights based on Kaiming initialization
+         * Sets random network weights and bias' based on Kaiming initialization
          */
         void kaimingInit();
         /** 
-         * Sets random weights based on Xavier initialization
+         * Sets random network weights and bias' based on Xavier initialization
          */
         void xavierInit();
 
-        // Propagate the signals from the inputs into the outputs, and store each value at each node, before and after the activation function
-        // Returns a pointer to the outputs, which is stored internally
-        const Vector& propagateStore( const Vector& inputs );
-        // Propagate the signals from the inputs into the outputs
-        void propagate(const Vector& inputs, Vector& outputs) const;
+        /**
+         * Propagates through the network using the `inputs` Vector, and places the
+         * final result in the `outputs` Vector.
+         */
+        void propagate( const BaseVector& inputs, BaseVector& outputs ) const;
+        /**
+         * Propagates through the network using the `inputs` Vector, and stores all of
+         * the propagated values internally in `propagated_vals`. 
+         * Returns a reference to the output Vector containing the final result, which
+         * is just the last column of `propagated_vals`.
+         */
+        const BaseVector& propagate( const BaseVector& inputs, RaggedMatrix& propagated_vals );
         
+        // Find the gradients with the node values obtained from propagateStore() and update the bias and weights
+        /**
+         * 
+         */
+        void backpropagate(
+            const RaggedMatrix& propagated_vals, 
+            const BaseVector& loss_D, 
+            RaggedTensor<3>& weight_gradients,
+            RaggedMatrix& bias_gradients
+        );
         // Find the gradients with the node values obtained from propagateStore() and store the gradients
         // The loss_d is the derivative of the loss function in terms of the outputs
-        void backpropagateStore( const Vector& inputs, const Vector& loss_d );
-        // Find the gradients with the node values obtained from propagateStore() and update the bias and weights
-        void backpropagate( const Vector& inputs, const Vector& loss_d, const float regularization_strength = 1e-5f, const float learning_rate = 1e-2f );
+        /**
+         * 
+         */
+        void backpropagateAndCache(
+            const BaseMatrix& propagated_vals, 
+            const BaseVector& loss_D
+        );
 
-        // Apply L2 regularization to gradients
-        void applyRegularization( const float regularization_strength);
-        // Update weights with gradients
-        // Subtracts weights for gradient descent
+
+
+        /**
+         * Updates the weights and bias using the cached gradients, using the given
+         * `learning_rate`.
+         */
         void applyGradients( const float learning_rate);
-        
+
+
+        /**
+         * 
+         */
+        std::vector<float> train( 
+            const BaseMatrix& training_inputs,
+            const BaseMatrix& training_actual_outputs,
+            const Hyperparameters& training_hyperparameters
+        );
+        /**
+         * 
+         */
+        std::vector<float> train( 
+            DataStream& training_data_stream,
+            const Hyperparameters& training_hyperparameters
+        );
+
         // Updates the network with backpropagation to bring the output closer to the actual output from the given input
         // Returns the loss (or average loss)
-        float train( const Vector& inputs, const Vector& actual_outputs, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
-        float train( const Vector& inputs, const Vector& actual_outputs, const LossFunction& loss_fn, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
+        float train( const BaseVector& inputs, const BaseVector& actual_outputs, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
+        float train( const BaseVector& inputs, const BaseVector& actual_outputs, const LossFunction& loss_fn, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
         // Updates the network like train(), but trains all of the datapoints at once, with the given batch size.
-        jai::Vector batchTrain( const Matrix& inputs, const Matrix& actual_outputs, 
+        jai::Vector batchTrain( const BaseMatrix& inputs, const BaseMatrix& actual_outputs, 
                                        const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
                                        const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
-        jai::Vector batchTrain( const Matrix inputs, const Matrix actual_outputs, const LossFunction& loss_fn, 
+        jai::Vector batchTrain( const BaseMatrix& inputs, const BaseMatrix& actual_outputs, const LossFunction& loss_fn, 
                                        const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
                                        const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
 
@@ -481,7 +538,6 @@ namespace jai {
         // Gets the number of weight edges pointing into the given bias node
         inline int getNodeWeightCount(const int node_index) const;
 
-
         // Get sizes for initializing external arrays
         
         inline size_t getPropagateNodeCount() const { return bias.totalSize(); }
@@ -493,14 +549,18 @@ namespace jai {
         // Gets difference between the two networks
         float getWeightDiff(const NeuralNetwork& other) const;
         float getBiasDiff(const NeuralNetwork& other) const;
-        // For printing the network
-        friend std::ostream& operator<< (std::ostream& fs, const NeuralNetwork& n);
+        
 
 
-        private:
-        // Recalculates needed values upon direct network size changes
-        // Sets all weights and bias' to 0
-        void recalculate();
+        /* Static Helper Functions */
+        public:
+
+        /**
+         * Applies L2 regularization to gradients
+         */
+        static void applyRegularization( const float regularization_strength, RaggedTensor<3> weight_gradients );
+
+
 
         /* Getters */
         public:
@@ -530,6 +590,20 @@ namespace jai {
          */
         const RaggedMatrix& getBias() const;
 
+        /**
+         * 
+         */
+        friend std::ostream& operator<< (std::ostream& fs, const NeuralNetwork& n);
+
+        /* Private Functions */
+        private:
+
+        /**
+         * Recalculates needed values upon direct network size changes.
+         * Sets all weights and bias' to 0 and resets cached values.
+         */
+        void recalculate();
+
         /* Network values */
         private:
 
@@ -544,11 +618,11 @@ namespace jai {
         /**
          * 
          */
-        size_t hidden_layer_size;
+        size_t hidden_layer_count;
         /**
          * 
          */
-        size_t hidden_layer_count;
+        size_t hidden_layer_size;
         /**
          * 
          */
@@ -572,11 +646,15 @@ namespace jai {
         /**
          * 
          */
-        jai::Vector propagate_vals_cache;
+        jai::RaggedMatrix propagated_vals_cache;
         /**
          * 
          */
-        jai::Vector gradient_vals_cache;
+        jai::RaggedTensor<3> weight_gradients_cache;
+        /**
+         * 
+         */
+        jai::RaggedMatrix bias_gradients_cache;
     };
 }
 

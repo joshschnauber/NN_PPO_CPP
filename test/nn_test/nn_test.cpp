@@ -33,98 +33,128 @@ inline float randomRange(const float min = 0, const float max = 1){
  * Runs tests on each Activation to verify correctness
  */
 void test_activation() {
-    START_TEST("Activation")
+    START_TESTING("Activation")
 
 
-    std::cout << "Starting Test: LinearActivation\n";
-    jai::LinearActivation linear_a = jai::LinearActivation();
-    
-    test_true( linear_a.verify() );
+    UNIT_TEST("LinearActivation")
+
+        jai::LinearActivation linear_a = jai::LinearActivation();
+        
+        test_true( linear_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: ReLUActivation\n";
-    jai::ReLUActivation relu_a = jai::ReLUActivation();
-    
-    test_true( relu_a.verify() );
+    UNIT_TEST("ReLUActivation")
+
+        jai::ReLUActivation relu_a = jai::ReLUActivation();
+        
+        test_true( relu_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: ELUActivation\n";
-    jai::ELUActivation elu_a = jai::ELUActivation();
-    
-    test_true( elu_a.verify() );
+    UNIT_TEST("ELUActivation")
+
+        jai::ELUActivation elu_a = jai::ELUActivation();
+        
+        test_true( elu_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: SoftplusActivation\n";
-    jai::SoftplusActivation softplus_a = jai::SoftplusActivation();
-    
-    test_true( softplus_a.verify() );
+    UNIT_TEST("SoftplusActivation")
+
+        jai::SoftplusActivation softplus_a = jai::SoftplusActivation();
+        
+        test_true( softplus_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: SigmoidActivation\n";
-    jai::SigmoidActivation sigmoid_a = jai::SigmoidActivation();
-    
-    test_true( sigmoid_a.verify() );
+    UNIT_TEST("SigmoidActivation")
+
+        jai::SigmoidActivation sigmoid_a = jai::SigmoidActivation();
+        
+        test_true( sigmoid_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: AugSigmoidActivation\n";
-    jai::AugSigmoidActivation augsigmoid_a_1 = jai::AugSigmoidActivation(-1, 1);
-    jai::AugSigmoidActivation augsigmoid_a_2 = jai::AugSigmoidActivation(2, 10);
-    jai::AugSigmoidActivation augsigmoid_a_3 = jai::AugSigmoidActivation(-8, -3);
-    
-    test_true( augsigmoid_a_1.verify() );
-    test_true( augsigmoid_a_2.verify() );
-    test_true( augsigmoid_a_3.verify() );
+    UNIT_TEST("AugSigmoidActivation")
 
-    test_throws( jai::AugSigmoidActivation augsigmoid_a_4 = jai::AugSigmoidActivation(2, 1) );
-    test_throws( jai::AugSigmoidActivation augsigmoid_a_5 = jai::AugSigmoidActivation(1, -1) );
-    test_throws( jai::AugSigmoidActivation augsigmoid_a_6 = jai::AugSigmoidActivation(-2, -2.1) );
+        jai::AugSigmoidActivation augsigmoid_a_1 = jai::AugSigmoidActivation(-1, 1);
+        jai::AugSigmoidActivation augsigmoid_a_2 = jai::AugSigmoidActivation(2, 10);
+        jai::AugSigmoidActivation augsigmoid_a_3 = jai::AugSigmoidActivation(-8, -3);
+        
+        test_true( augsigmoid_a_1.verify() );
+        test_true( augsigmoid_a_2.verify() );
+        test_true( augsigmoid_a_3.verify() );
 
-    test_not_throws( jai::AugSigmoidActivation augsigmoid_a_7 = jai::AugSigmoidActivation(10, 10) );
-    test_not_throws( jai::AugSigmoidActivation augsigmoid_a_8 = jai::AugSigmoidActivation(-10, -10) );
+        test_throws( jai::AugSigmoidActivation augsigmoid_a_4 = jai::AugSigmoidActivation(2, 1) );
+        test_throws( jai::AugSigmoidActivation augsigmoid_a_5 = jai::AugSigmoidActivation(1, -1) );
+        test_throws( jai::AugSigmoidActivation augsigmoid_a_6 = jai::AugSigmoidActivation(-2, -2.1) );
 
+        test_not_throws( jai::AugSigmoidActivation augsigmoid_a_7 = jai::AugSigmoidActivation(10, 10) );
+        test_not_throws( jai::AugSigmoidActivation augsigmoid_a_8 = jai::AugSigmoidActivation(-10, -10) );
 
-    std::cout << "Starting Test: TanhActivation\n";
-    jai::TanhActivation tanh_a = jai::TanhActivation();
-    
-    test_true( tanh_a.verify() );
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: ExpActivation\n";
-    jai::ExpActivation exp_a = jai::ExpActivation();
-    
-    test_true( exp_a.verify() );
+    UNIT_TEST("TanhActivation")
+
+        jai::TanhActivation tanh_a = jai::TanhActivation();
+        
+        test_true( tanh_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: AugExpActivation\n";
-    jai::AugExpActivation augexp_a_1 = jai::AugExpActivation(0);
-    jai::AugExpActivation augexp_a_2 = jai::AugExpActivation(0.5);
-    jai::AugExpActivation augexp_a_3 = jai::AugExpActivation(1);
-    jai::AugExpActivation augexp_a_4 = jai::AugExpActivation(10);
-    
-    test_true( augexp_a_1.verify() );
-    test_true( augexp_a_2.verify() );
-    test_true( augexp_a_3.verify() );
-    test_true( augexp_a_4.verify() );
+    UNIT_TEST("ExpActivation")
 
-    test_throws( jai::AugExpActivation augexp_a_5 = jai::AugExpActivation(-1) );
-    test_throws( jai::AugExpActivation augexp_a_6 = jai::AugExpActivation(-10) );
+        jai::ExpActivation exp_a = jai::ExpActivation();
+        
+        test_true( exp_a.verify() );
+
+    END_UNIT_TEST
 
 
-    std::cout << "Starting Test: PowerActivation\n";
-    jai::PowerActivation augexp_a_1 = jai::PowerActivation(0);
-    jai::PowerActivation augexp_a_2 = jai::PowerActivation(1);
-    jai::PowerActivation augexp_a_3 = jai::PowerActivation(-1);
-    jai::PowerActivation augexp_a_4 = jai::PowerActivation(10);
-    jai::PowerActivation augexp_a_5 = jai::PowerActivation(-8);
-    
-    test_true( augexp_a_1.verify() );
-    test_true( augexp_a_2.verify() );
-    test_true( augexp_a_3.verify() );
-    test_true( augexp_a_4.verify() );
-    test_true( augexp_a_5.verify() );
+    UNIT_TEST("AugExpActivation")
+
+        jai::AugExpActivation augexp_a_1 = jai::AugExpActivation(0);
+        jai::AugExpActivation augexp_a_2 = jai::AugExpActivation(0.5);
+        jai::AugExpActivation augexp_a_3 = jai::AugExpActivation(1);
+        jai::AugExpActivation augexp_a_4 = jai::AugExpActivation(10);
+        
+        test_true( augexp_a_1.verify() );
+        test_true( augexp_a_2.verify() );
+        test_true( augexp_a_3.verify() );
+        test_true( augexp_a_4.verify() );
+
+        test_throws( jai::AugExpActivation augexp_a_5 = jai::AugExpActivation(-1) );
+        test_throws( jai::AugExpActivation augexp_a_6 = jai::AugExpActivation(-10) );
+
+    END_UNIT_TEST
 
 
-    END_TEST
+    UNIT_TEST("PowerActivation")
+
+        jai::PowerActivation augexp_a_1 = jai::PowerActivation(0);
+        jai::PowerActivation augexp_a_2 = jai::PowerActivation(1);
+        jai::PowerActivation augexp_a_3 = jai::PowerActivation(-1);
+        jai::PowerActivation augexp_a_4 = jai::PowerActivation(10);
+        jai::PowerActivation augexp_a_5 = jai::PowerActivation(-8);
+        
+        test_true( augexp_a_1.verify() );
+        test_true( augexp_a_2.verify() );
+        test_true( augexp_a_3.verify() );
+        test_true( augexp_a_4.verify() );
+        test_true( augexp_a_5.verify() );
+
+    END_UNIT_TEST
+
+
+    END_TESTING
 }
 
 
@@ -133,14 +163,13 @@ void test_activation() {
  * Runs tests on each LayerActivation to verify correctness
  */
 void test_layer_activation() {
-    START_TEST("LayerActivation")
+    START_TESTING("LayerActivation")
 
-        const size_t dim1 = 20;
-        auto t = new size_t[dim1][10];
+    
+    /* TODO: Tests for LayerActivation */
 
 
-
-    END_TEST
+    END_TESTING
 }
 
 
@@ -148,8 +177,9 @@ void test_layer_activation() {
  * Runs simple greater than or less than training test on NeuralNetwork
  */
 void test_neural_network() {
-    START_TEST("NeuralNetwork")
+    START_TESTING("NeuralNetwork")
 
+    
     // Get input arguments
     int c = 100;
     int hidden_layer_size = 2;
@@ -234,7 +264,8 @@ void test_neural_network() {
     // Print network, if desired
     //std::cout << network << '\n';
 
-    END_TEST
+
+    END_TESTING
 }
 
 

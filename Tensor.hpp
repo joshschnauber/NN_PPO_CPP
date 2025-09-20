@@ -1,5 +1,28 @@
 /* Tensor.hpp */
 
+/**
+ * TODO:
+ * - Add optional template parameter for other types in Tensor (still float as default)
+ * 
+ * - Add Vector comparison with scalars, which returns Vector with 0 for false and 1 for 
+ *   true.
+ *   .operator > ()  and  .operator < ()  and  .operator == ()  and .operator != ()
+ * - Add Vector indexing, to return a Tensor with only the selected 'rows' (select 
+ *   'rows' in which the Vector has value > 0). Ideally this would return a VTensor.
+ *   .select(Tensor, threshhold = 0)
+ * 
+ * - Add ability to select multiple 'rows' from their index and return a Tensor
+ *   containing only those rows.
+ * - Add ability to select two indexes and return a Tensor of the rectangle selected.
+ *   .operator [] (start[RANK], end[RANK])  or  .operator [] (start, end)
+ * 
+ * - Improve VTensor to allow representation of more complex shapes inside Tensors 
+ *   (would require large refactor, especially of BaseTensor).
+ *   Maybe switch BaseTensor& to generic TENSOR_TYPE in function calls to allow more 
+ *   efficiently having different implementions for getting data, rather than virtual
+ *   functions
+ */
+ 
 #ifndef TENSOR_HPP
 #define TENSOR_HPP
 
@@ -26,7 +49,6 @@ namespace jai {
     struct InitializerElementsType<1> {
         using type = std::initializer_list<float>;
     };
-
     /**
      * Recursive type used to initialize a Tensor of rank `RANK` with elements.
      * An InitializerElements<RANK> contains a set of InitializerElements<RANK-1>s,
@@ -34,6 +56,7 @@ namespace jai {
      */
     template <size_t RANK>
     using InitializerElements = typename InitializerElementsType<RANK>::type;
+
 
     /* Tensor Declarations */
     template<size_t RANK>
@@ -44,7 +67,6 @@ namespace jai {
     class VTensor;
     template<size_t RANK>
     class RaggedTensor;
-
 
 
     /**
@@ -294,7 +316,7 @@ namespace jai {
          * If `this` Matrix is (m x n), then the result will be (n x m).
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
-        Tensor<2> transpose();
+        Tensor<2> transpose() const;
         /**
          * Finds the matrix multiplication of the `other` Matrix on `this` Matrix and
          * returns the result.
@@ -309,6 +331,18 @@ namespace jai {
          */
         template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
         Tensor<1> mul( const BaseTensor<1>& other ) const;
+        /**
+         * Finds the determinant of `this` Matrix and returns the result. The Matrix
+         * must be of size (n x n).
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
+        float determinant() const;
+        /**
+         * Finds the matrix inverse of `this` Matrix and returns the result. The Matrix
+         * must be of size (n x n) and invertible (the columns are linearly independent).
+         */
+        template<size_t R = RANK, typename std::enable_if<(R == 2), int>::type = 0>
+        Tensor<2> inverse() const;
 
         /* Getters */
         public:
@@ -469,6 +503,15 @@ namespace jai {
          * Ensures that memory is freed when existing object is overwritten.
          */
         Tensor<RANK>& operator = ( Tensor<RANK>&& other );
+    
+        /* Factory functions */
+        public:
+
+        /**
+         * Creates a square identity (`dims` x `dims`) matrix with the given
+         * `diagonal_value`.
+         */
+        static Tensor<2> identity( const size_t dims, const float diagonal_value = 1.0f );
     };
 
 
@@ -739,7 +782,6 @@ namespace jai {
 
 
     /* Vector and Matrix type definitions */
-
     using BaseVector = BaseTensor<1>;
     using Vector = Tensor<1>;
     using VVector = VTensor<1>;
@@ -819,10 +861,10 @@ namespace jai {
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
     const float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
         size_t index = 0;
-        size_t inner_tensor_total_size = this->total_size;
+        size_t inner_tensor_size = 1;
         for( size_t i = 0; i < RANK; ++i ) {
-            inner_tensor_total_size /= this->dimensions[i];
-            index += inner_tensor_total_size * indexes[i];
+            index += inner_tensor_size * indexes[RANK - i - 1];
+            inner_tensor_size *= this->dimensions[RANK - i - 1];
         }
         return this->data_[index];
     }
@@ -830,10 +872,10 @@ namespace jai {
     template<size_t R, typename std::enable_if<(R > 1), int>::type>
     float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
         size_t index = 0;
-        size_t inner_tensor_size = this->total_size;
+        size_t inner_tensor_size = 1;
         for( size_t i = 0; i < RANK; ++i ) {
-            inner_tensor_size /= this->dimensions[i];
-            index += inner_tensor_size * indexes[i];
+            index += inner_tensor_size * indexes[RANK - i - 1];
+            inner_tensor_size *= this->dimensions[RANK - i - 1];
         }
         return this->data_[index];
     }
@@ -922,7 +964,7 @@ namespace jai {
 
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator + ( const BaseTensor<RANK>& other ) const {
-        Tensor<RANK> result(this->dimensions);
+        Tensor<RANK> result = this->emptied();
         // Add the values in the Tensors together
         addValues(this->data_, other.data_, result.data_, this->total_size);
 
@@ -930,7 +972,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator - ( const BaseTensor<RANK>& other ) const {
-        Tensor<RANK> result(this->dimensions);
+        Tensor<RANK> result = this->emptied();
         // Subtract the values in this Tensor by the values in the other Tensor
         subtractValues(this->data_, other.data_, result.data_, this->total_size);
 
@@ -938,7 +980,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator * ( const BaseTensor<RANK>& other ) const {
-        Tensor<RANK> result(this->dimensions);
+        Tensor<RANK> result = this->emptied();
         // Multiply the values in the Tensors together
         multiplyValues(this->data_, other.data_, result.data_, this->total_size);
 
@@ -946,7 +988,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator / ( const BaseTensor<RANK>& other ) const {
-        Tensor<RANK> result(this->dimensions);
+        Tensor<RANK> result = this->emptied();
         // Divide the values in this Tensor by the values in the other Tensor
         divideValues(this->data_, other.data_, result.data_, this->total_size);
 
@@ -954,7 +996,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> operator * ( const BaseTensor<RANK>& tensor, const float scale ) {
-        Tensor<RANK> result(tensor.dimensions);
+        Tensor<RANK> result = tensor.emptied();
         // Multiply the values in the Tensor by the scale
         multiplyValuesByScalar(tensor.data_, scale, result.data_, tensor.total_size);
 
@@ -962,7 +1004,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> operator * ( const float scale, const BaseTensor<RANK>& tensor ) {
-        Tensor<RANK> result(tensor.dimensions);
+        Tensor<RANK> result = tensor.emptied();
         // Multiply the values in the Tensor by the scale
         multiplyValuesByScalar(tensor.data_, scale, result.data_, tensor.total_size);
         
@@ -970,7 +1012,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator / ( const float scale ) const {
-        Tensor<RANK> result(this->dimensions);
+        Tensor<RANK> result = this->emptied();
         // Multiply the values in this Tensor by the inverted scale
         multiplyValuesByScalar(this->data_, (1.0f / scale), result.data_, this->total_size);
 
@@ -978,7 +1020,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator - () const {
-        Tensor<RANK> result(this->dimensions);
+        Tensor<RANK> result = this->emptied();
         // Negate the values in this Tensor
         negateValues(this->data_, result.data_, this->total_size);
 
@@ -1113,10 +1155,10 @@ namespace jai {
 
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 2), int>::type>
-    Tensor<2> BaseTensor<RANK>::transpose() {
-        Tensor<2> result(this->dimensions[1], this->dimensions[0]);
-        for( int i = 0; i < this->dimensions[0]; ++i ) {
-            for( int j = 0; j < this->dimensions[1]; ++j ) {
+    Tensor<2> BaseTensor<RANK>::transpose() const {
+        Tensor<2> result({this->dimensions[1], this->dimensions[0]});
+        for( size_t i = 0; i < this->dimensions[0]; ++i ) {
+            for( size_t j = 0; j < this->dimensions[1]; ++j ) {
                 result[{j, i}] = (*this)[{i, j}];
             }
         }
@@ -1132,7 +1174,7 @@ namespace jai {
             for( size_t j = 0; j < result.dimensions[1]; ++j ) {
                 float sum = 0;
                 for( size_t k = 0; k < this->dimensions[1]; ++k ) {
-                    sum += this[{i, k}] * other[{k, j}];
+                    sum += (*this)[{i, k}] * other[{k, j}];
                 }
                 result[{i, j}] = sum;
             }
@@ -1148,11 +1190,83 @@ namespace jai {
         for( size_t i = 0; i < result.dimensions[0]; ++i ) {
             float sum = 0;
             for( size_t j = 0; j < result.dimensions[1]; ++j ) {
-                sum += this[{j, i}] * other[i];
+                sum += (*this)[{j, i}] * other[i];
             }
             result[i] = sum;
         }
         return result;
+    }
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 2), int>::type>
+    float BaseTensor<RANK>::determinant() const {
+        const size_t size = this->dimensions[0];
+        if( size == 2 ) {
+            return this->data_[0] * this->data_[3] - this->data_[1] * this->data_[2];
+        }
+
+        float determinant = 0;
+        float sign = -1;
+        for( size_t k = 0; k < size; ++k ) {
+            sign *= -1;
+
+            // Get coefficient
+            const float value_0_i = (*this)[{0, k}];
+            // If the value is 0, skip finding determinant
+            if( value_0_i == 0.0f ) {
+                continue;
+            }
+
+            // Create sub matrix
+            Tensor<2> sub_matrix({size - 1, size - 1});
+            // Copy over data
+            for( size_t i = 0; i < size-1; ++i ) {
+                for( size_t j = 0, this_j = 0; j < size-1; ++j, ++this_j ) {
+                    if( this_j == k ) {
+                        ++this_j;
+                    }
+                    sub_matrix[{i, j}] = (*this)[{i + 1, this_j}];
+                }
+            }
+            // Add determinant
+            determinant += sign * value_0_i * sub_matrix.determinant();
+        }
+        
+        return determinant;
+    }
+    template<size_t RANK>
+    template<size_t R, typename std::enable_if<(R == 2), int>::type>
+    Tensor<2> BaseTensor<RANK>::inverse() const {
+        Tensor<2> this_copy = this->transpose();
+        Tensor<2> result = Tensor<2>::identity(this->dimensions[0]);
+
+        const size_t size = this->dimensions[0];
+        for( size_t i = 0; i < size; ++i ) {
+            // Divide ith row by ith value in row
+            const float diagonal_i = this_copy[{i, i}];
+            if ( diagonal_i == 0 ) {
+                break;
+            }
+            const float scale_i = 1.0f / diagonal_i;
+            this_copy[i].scaleBy(scale_i);
+            result[i].scaleBy(scale_i);
+
+            // Delete values in ith column below this row
+            for( size_t j = i + 1; j < size; ++j ) {
+                const float sub_row_scale = this_copy[{j, i}];
+                this_copy[j].subFrom(this_copy[i] * sub_row_scale);
+                result[j].subFrom(result[i] * sub_row_scale);
+            }
+
+            // Delete values in ith column above this row
+            for( size_t j = 0; j < i; ++j ) {
+                const Tensor<1> row_sub = this_copy[i] * this_copy[{j, i}];
+                const float sub_row_scale = this_copy[{j, i}];
+                this_copy[j].subFrom(this_copy[i] * sub_row_scale);
+                result[j].subFrom(result[i] * sub_row_scale);
+            }
+        }
+
+        return result.transpose();
     }
 
     template<size_t RANK>
@@ -1482,6 +1596,14 @@ namespace jai {
         other.data_ = nullptr;
 
         return *this;
+    }
+    template<size_t RANK>
+    Tensor<2> Tensor<RANK>::identity( const size_t dims, const float diagonal_value ) {
+        Tensor<2> result({dims, dims}, 0);
+        for( size_t i = 0; i < dims; ++i ) {
+            result[{i, i}] = diagonal_value;
+        }
+        return result;
     }
 
 
@@ -1862,7 +1984,7 @@ namespace jai {
         // Copy over dimensions
         for( size_t i = 0; i < this->dimension1; ++i ) {
             for( size_t j  = 0; j < RANK-1; ++j ) {
-                inner_tensor_dims[i][j] = this->inner_tensors[i].dimensions[1];
+                inner_tensor_dims[i][j] = this->inner_tensors[i].dimensions[j];
             }
         }
         return RaggedTensor<RANK>(this->dimension1, inner_tensor_dims);
