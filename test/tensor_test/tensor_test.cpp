@@ -19,7 +19,6 @@ void test_base_tensor() {
     START_TESTING("Base Tensor")
 
 
-    /* 1. Test RANK=1 constructor and assignment */
     UNIT_TEST("RANK=1 constructor and assignment")
 
         jai::Tensor<1> t1_1(3);
@@ -37,7 +36,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 2. Test RANK=1 fill constructor */
     UNIT_TEST("RANK=1 fill constructor")
 
         const jai::Tensor<1> t1_2(5, 10);
@@ -53,7 +51,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 3. Test RANK=1 element initializer constructor */
     UNIT_TEST("RANK=1 element initializer constructor")
 
         const jai::Tensor<1> t1_3 = {1, 2, 3, 4, 5, 6, 7, 8};
@@ -68,7 +65,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 4. Test RANK=2 constructor and assignment */
     UNIT_TEST("RANK=2 constructor and assignment")
 
         jai::Tensor<2> t2_4({3, 2});
@@ -97,7 +93,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 5. Test RANK=2 fill constructor */
     UNIT_TEST("RANK=2 fill constructor")
 
         const jai::Tensor<2> t2_5({2, 3}, 50);
@@ -125,7 +120,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 6. Test RANK=2 element initializer constructor */
     UNIT_TEST("RANK=2 element initializer constructor")
 
         const jai::Tensor<2> t2_6 = {{61, 62, 63}, {64, 65, 66}};
@@ -154,7 +148,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 7. Test RANK=2 Tensor element initializer constructor */
     UNIT_TEST("RANK=2 Tensor element initializer constructor")
 
         const jai::Tensor<1> t1_7_1 = {71, 72};
@@ -180,7 +173,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 8. Test inner tensor accessor */
     UNIT_TEST("inner tensor accessor")
 
         jai::Tensor<3> t3_8({3, 2, 2}, 81);
@@ -200,7 +192,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 9. Test view() */
     UNIT_TEST("view()")
 
         jai::Tensor<1> t1_9(8, 90);
@@ -239,7 +230,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 10. Test rankUp() */
     UNIT_TEST("rankUp()")
 
         const jai::Tensor<1> t1_10 = {101, 102, 103};
@@ -255,7 +245,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 11. Test flattened() */
     UNIT_TEST("flattened()")
 
         jai::Tensor<3> t3_11 = {
@@ -285,7 +274,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 12. Test addition operator */
     UNIT_TEST("addition operator")
 
         const jai::Tensor<1> t1_12_1 = {121, 122, 123, 124};
@@ -302,7 +290,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 13. Test subtraction operator */
     UNIT_TEST("subtraction operator")
 
         const jai::Tensor<1> t1_13_1 = {131, 132, 133, 134, 135};
@@ -320,7 +307,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 14. Test multiplication operator */
     UNIT_TEST("multiplication operator")
 
         const jai::Tensor<2> t2_14_1 = {{141, 142}, {143, 144}};
@@ -346,7 +332,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 15. Test division operator */
     UNIT_TEST("division operator")
 
         const jai::Tensor<2> t2_15_1 = {{1510, 1520}, {1530, 1540}};
@@ -363,7 +348,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 16. Test set() */
     UNIT_TEST("set()")
 
         jai::Tensor<2> t2_16_1 = {{1601, 1602, 1603}, {1604, 1605, 1606}};
@@ -398,13 +382,12 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 17. Test addTo() */
-    UNIT_TEST("addTo()")
+    UNIT_TEST("+= operator")
 
         jai::Tensor<1> t1_17_1 = {171, 172, 173};
         const jai::Tensor<1> t1_17_2 = {174, 175, 176};
 
-        t1_17_1.addTo(t1_17_2);
+        t1_17_1 += t1_17_2;
 
         test_equals( t1_17_1[0], 345 );
         test_equals( t1_17_1[1], 347 );
@@ -413,13 +396,12 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 18. Test subFrom() */
-    UNIT_TEST("subFrom()")
+    UNIT_TEST("-= operator")
 
         jai::Tensor<1> t1_18_1 = {181, 182, 183};
         const jai::Tensor<1> t1_18_2 = {184, 185, 186};
 
-        t1_18_1.subFrom(t1_18_2);
+        t1_18_1 -= t1_18_2;
 
         test_equals( t1_18_1[0], -3 );
         test_equals( t1_18_1[1], -3 );
@@ -428,12 +410,43 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 19. Test scaleBy() */
-    UNIT_TEST("scaleBy()")
+    UNIT_TEST("*= operator")
+
+        jai::Tensor<1> t1_1 = {1, 2, 3, 4, 5};
+        const jai::Tensor<1> t1_2 = {2, -3, -4, 5, 6};
+
+        t1_1 *= t1_2;
+
+        test_equals( t1_1[0], 2 );
+        test_equals( t1_1[1], -6 );
+        test_equals( t1_1[2], -12 );
+        test_equals( t1_1[3], 20 );
+        test_equals( t1_1[4], 30 );
+
+    END_UNIT_TEST
+
+
+    UNIT_TEST("/= operator")
+
+        jai::Tensor<1> t1_1 = {10, 20, 30, 40, 50};
+        const jai::Tensor<1> t1_2 = {5, -4, -3, 10, 5};
+
+        t1_1 /= t1_2;
+
+        test_equals( t1_1[0], 2 );
+        test_equals( t1_1[1], -5 );
+        test_equals( t1_1[2], -10 );
+        test_equals( t1_1[3], 4 );
+        test_equals( t1_1[4], 10 );
+
+    END_UNIT_TEST
+
+
+    UNIT_TEST("*= operation with scalar")
 
         jai::Tensor<1> t1_19_1 = {191, 192, 193};
 
-        t1_19_1.scaleBy(2);
+        t1_19_1 *= 2;
 
         test_equals( t1_19_1[0], 382 );
         test_equals( t1_19_1[1], 384 );
@@ -442,7 +455,20 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 20. Test mag() */
+    UNIT_TEST("/= operation with scalar")
+
+        jai::Tensor<1> t1_19_1 = {5, 25, 100, 500};
+
+        t1_19_1 /= 5;
+
+        test_equals( t1_19_1[0], 1 );
+        test_equals( t1_19_1[1], 5 );
+        test_equals( t1_19_1[2], 20 );
+        test_equals( t1_19_1[3], 100 );
+
+    END_UNIT_TEST
+
+
     UNIT_TEST("mag()")
 
         const jai::Tensor<1> t1_20_1 = {201, -202, 203};
@@ -456,7 +482,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 21. Test squaredMag() */
     UNIT_TEST("squaredMag()")
 
         const jai::Tensor<1> t1_21_1 = {211, -212, 213};
@@ -470,7 +495,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 21. Test dot() */
     UNIT_TEST("dot()")
 
         const jai::Tensor<1> t1_22_1 = {211, 212, -213, 214};
@@ -481,7 +505,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 23. Test isSameSize() */
     UNIT_TEST("isSameSize()")
 
         const jai::Tensor<3> t3_23_1 = { { {2301, 2302}, {2303, 2304}, {2305, 2306} }, { {2307, 2308}, {2309, 2310}, {2311, 2312} } };
@@ -499,7 +522,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 24. Test equals operator */
     UNIT_TEST("equals operator")
 
         const jai::Tensor<1> t1_24_1 = { 241, 242, 244, 245 };
@@ -515,7 +537,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 25. Test not equals operator */
     UNIT_TEST("not equals operator")
 
         const jai::Tensor<1> t1_25_1 = { 251, 252, 254, 255 };
@@ -531,16 +552,17 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 26. Test RANK=1 transform() */
-    UNIT_TEST("RANK=1 transform()")
+    UNIT_TEST("RANK=1 transformWithIndexes()")
 
         jai::Tensor<1> t1_26 = { 261, 262, 263, 264, 265 };
 
-        t1_26.transform([&total_tests, &total_failed_tests, &t1_26](const size_t index, const float value) {
-            test_equals(t1_26[index], value);
+        t1_26.transformWithIndexes(
+            [&total_tests, &total_failed_tests, &t1_26](const size_t index, const float value) {
+                test_equals(t1_26[index], value);
 
-            return value * 2;
-        });
+                return value * 2;
+            }
+        );
 
         test_equals( t1_26[0], 522);
         test_equals( t1_26[1], 524);
@@ -551,17 +573,18 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    /* 27. Test RANK=2 transform() */
-    UNIT_TEST("RANK=2 transform()")
+    UNIT_TEST("RANK=2 transformWithIndexes()")
 
         jai::Tensor<2> t2_27 = {{271, 272, 273}, {274, 275, 276}};
 
-        t2_27.transform([&total_tests, &total_failed_tests, &t2_27](const size_t indexes[2], const float value) {
-            size_t _indexes[2] = {indexes[0], indexes[1]}; // For some reason `indexes` cannot be used directly
-            test_equals(t2_27[_indexes], value);
+        t2_27.transformWithIndexes(
+            [&total_tests, &total_failed_tests, &t2_27](const size_t indexes[2], const float value) {
+                size_t _indexes[2] = {indexes[0], indexes[1]}; // For some reason `indexes` cannot be used directly
+                test_equals(t2_27[_indexes], value);
 
-            return value * 2;
-        });
+                return value * 2;
+            }
+        );
 
         test_equals( (t2_27[{0, 0}]), 542);
         test_equals( (t2_27[{0, 1}]), 544);
@@ -606,6 +629,14 @@ void test_base_tensor() {
  */
 void test_ragged_tensor() {
     START_TESTING("Ragged Tensor")
+
+
+    UNIT_TEST("RANK=2 constructor")
+
+        //jai::RaggedTensor<2> rt2_1(3, {2, 3, 4});
+        //jai::RaggedTensor<2> rt2_2(1, {2});
+
+    END_UNIT_TEST
 
 
     /* TODO: Tests for RaggedTensor member functions */

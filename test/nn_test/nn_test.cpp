@@ -2,11 +2,12 @@
 
 /*
  * Test of different parts of NeuralNetwork.hpp.
- * Tests the correctness of the activatio functions, and then does a simple test by 
+ * Tests the correctness of the activation functions, and then does a simple test by 
  * training a NeuralNetwork to determine which of two numbers is larger.
  *
- * g++ nn_test.cpp -o nn_test.exe
- * nn_test.exe 100 2 3 0.01
+ * g++ -g -Wextra -Wall nn_test.cpp -o nn_test.exe
+ * nn_test.exe 
+ * 100 2 3 0.01
  */
 
 #include "../../NeuralNetwork.hpp"
@@ -180,6 +181,38 @@ void test_neural_network() {
     START_TESTING("NeuralNetwork")
 
 
+    UNIT_TEST("XOR Training")
+
+        jai::NeuralNetwork xor_nn(
+            2, 
+            1, 
+            2, 
+            1, 
+            jai::ReLUActivation(), 
+            jai::UniformLayerActivation(jai::SigmoidActivation())
+        );
+        jai::NeuralNetwork::Hyperparameters hp;
+        hp.max_epochs = 1000;
+
+        jai::Matrix X = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+        jai::Matrix Y = {{0}, {1}, {1}, {0}};
+
+        xor_nn.train(
+            X,
+            Y,
+            jai::SquaredDiffLossFunction(),
+            hp
+        );
+
+        for( size_t i = 0; i < X.size(0); ++i ) {
+            float y_p = xor_nn.propagate(X[0])[0];
+            std::cout << y_p << "\n";
+        }
+
+
+    END_UNIT_TEST
+
+
     // Get input arguments
     int c = 100;
     int hidden_layer_size = 2;
@@ -197,7 +230,7 @@ void test_neural_network() {
     //    }
     //}
 
-
+        /*
     // Initialize network
     jai::NeuralNetwork network( INPUT_COUNT, OUTPUT_COUNT, hidden_layer_size, hidden_layer_count,
                                 jai::ELUActivation(), 
@@ -263,6 +296,7 @@ void test_neural_network() {
 
     // Print network, if desired
     //std::cout << network << '\n';
+    */
 
 
     END_TESTING

@@ -253,18 +253,44 @@ namespace jai {
          * The `other` Tensor must be the same total size as `this` Tensor, but does not
          * necessarily have to have the same dimensions.
          */
-        void addTo( const BaseTensor<RANK>& other );
+        BaseTensor<RANK>& operator += ( const BaseTensor<RANK>& other );
         /**
          * Subtracts all of the elements in the other Tensor from all of the elements in
          * `this` Tensor.
          * The `other` Tensor must be the same total size as `this` Tensor, but does not 
          * necessarily have to have the same dimensions.
          */
-        void subFrom( const BaseTensor<RANK>& other );
+        BaseTensor<RANK>& operator -= ( const BaseTensor<RANK>& other );
+        /** 
+         * Multiplies all of the elements in the `other` Tensor with all of the elements
+         * in `this` Tensor.
+         * The `other` Tensor must be the same total size as `this` Tensor, but does not
+         * necessarily have to have the same dimensions.
+         */
+        BaseTensor<RANK>& operator *= ( const BaseTensor<RANK>& other );
+        /**
+         * Divides all of the elements in the `other` Tensor from all of the elements in
+         * `this` Tensor.
+         * The `other` Tensor must be the same total size as `this` Tensor, but does not 
+         * necessarily have to have the same dimensions.
+         */
+        BaseTensor<RANK>& operator /= ( const BaseTensor<RANK>& other );
         /** 
          * Multiples all of the elements in `this` Tensor with the given `scale`.
          */
-        void scaleBy( float scale );
+        BaseTensor<RANK>& operator *= ( float scale );
+        /** 
+         * Divides all of the elements in `this` Tensor with the given `scale`.
+         */
+        BaseTensor<RANK>& operator /= ( float scale );
+        /**
+         * This transforms each element in `this` Tensor using the given 
+         * `transform_function`. The only argument the function should take is of type
+         * `float`, and the function should return a `float`.
+         * The value in the Tensor is set to the returned value of `transform_function`.
+         */
+        template<typename Func>
+        void transform( Func transform_function );
         /**
          * Defined for RANK=1 Tensors, this transforms each element in `this`
          * Tensor using the given `transform_function`.
@@ -274,7 +300,7 @@ namespace jai {
          * The value returned by the function is the new value set at the index.
          */
         template<size_t R = RANK, typename std::enable_if<(R == 1), int>::type = 0, typename Func>
-        void transform( Func transform_function );
+        void transformWithIndexes( Func transform_function );
         /**
          * Defined for RANK>1 Tensors, this transforms each element in `this`
          * Tensor using the given `transform_function`.
@@ -284,7 +310,7 @@ namespace jai {
          * The value returned by the function is the new value set at the indexes.
          */
         template<size_t R = RANK, typename std::enable_if<(R > 1), int>::type = 0, typename Func>
-        void transform( Func transform_function );
+        void transformWithIndexes( Func transform_function );
 
         /* Vector operations */
         public:
@@ -760,18 +786,45 @@ namespace jai {
          * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
          * but does not necessarily have to have the same dimensions.
          */
-        void addTo( const RaggedTensor<RANK>& other );
+        RaggedTensor<RANK>& operator += ( const RaggedTensor<RANK>& other );
         /**
          * Subtracts all of the elements in the other RaggedTensor from all of the
          * elements in `this` RaggedTensor.
          * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
          * but does not necessarily have to have the same dimensions.
          */
-        void subFrom( const RaggedTensor<RANK>& other );
+        RaggedTensor<RANK>& operator -= ( const RaggedTensor<RANK>& other );
+        /** 
+         * Multiplies all of the elements in the `other` RaggedTensor to all of the
+         * elements in `this` RaggedTensor.
+         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
+         * but does not necessarily have to have the same dimensions.
+         */
+        RaggedTensor<RANK>& operator *= ( const RaggedTensor<RANK>& other );
+        /**
+         * Divides all of the elements in the `other` RaggedTensor from all of the
+         * elements in `this` RaggedTensor.
+         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
+         * but does not necessarily have to have the same dimensions.
+         */
+        RaggedTensor<RANK>& operator /= ( const RaggedTensor<RANK>& other );
         /** 
          * Multiples all of the elements in `this` RaggedTensor with the given `scale`.
          */
-        void scaleBy( float scale );
+        RaggedTensor<RANK>& operator *= ( float scale );
+        /** 
+         * Divides all of the elements in `this` RaggedTensor by the given `scale`.
+         */
+        RaggedTensor<RANK>& operator /= ( float scale );
+        /**
+         * This transforms each element in `this` RaggedTensor using the given 
+         * `transform_function`. The only argument the function should take is of type
+         * `float`, and the function should return a `float`.
+         * The value in the RaggedTensor is set to the returned value of
+         * `transform_function`.
+         */
+        template<typename Func>
+        void transform( Func transform_function );
 
         /* Getters */
         public:
@@ -1103,30 +1156,58 @@ namespace jai {
         setValues(tensor.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
-    void BaseTensor<RANK>::addTo( const BaseTensor<RANK>& other ) {
+    BaseTensor<RANK>& BaseTensor<RANK>::operator += ( const BaseTensor<RANK>& other ) {
         // Add other's values
         addValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
     }
     template<size_t RANK>
-    void BaseTensor<RANK>::subFrom( const BaseTensor<RANK>& other ) {
+    BaseTensor<RANK>& BaseTensor<RANK>::operator -= ( const BaseTensor<RANK>& other ) {
         // Subtract other's values
         subtractValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
     }
     template<size_t RANK>
-    void BaseTensor<RANK>::scaleBy( const float scale ) {
+    BaseTensor<RANK>& BaseTensor<RANK>::operator *= ( const BaseTensor<RANK>& other ) {
+        // Multiply other's values
+        multiplyValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    BaseTensor<RANK>& BaseTensor<RANK>::operator /= ( const BaseTensor<RANK>& other ) {
+        // Divide other's values
+        divideValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    BaseTensor<RANK>& BaseTensor<RANK>::operator *= ( const float scale ) {
         // Multiply by scale
         multiplyValuesByScalar(this->data_, scale, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    BaseTensor<RANK>& BaseTensor<RANK>::operator /= ( const float scale ) {
+        // Divide by scale
+        multiplyValuesByScalar(this->data_, 1.0f / scale, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    template<typename Func>
+    void BaseTensor<RANK>::transform( Func transform_function ) {
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            this->data_[i] = transform_function(this->data_[i]);
+        }
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R == 1), int>::type, typename Func>
-    void BaseTensor<RANK>::transform( Func transform_function ) {
+    void BaseTensor<RANK>::transformWithIndexes( Func transform_function ) {
         for( size_t i = 0; i < this->total_size; ++i ) {
             (*this)[i] = transform_function(i, (*this)[i]);
         }
     }
     template<size_t RANK>
     template<size_t R, typename std::enable_if<(R > 1), int>::type, typename Func>
-    void BaseTensor<RANK>::transform( Func transform_function ) {
+    void BaseTensor<RANK>::transformWithIndexes( Func transform_function ) {
         // Start the indexes at 0
         size_t indexes[RANK];
         for( size_t i = 0; i < RANK; ++i ) {
@@ -1312,22 +1393,22 @@ namespace jai {
                 break;
             }
             const float scale_i = 1.0f / diagonal_i;
-            this_copy[i].scaleBy(scale_i);
-            result[i].scaleBy(scale_i);
+            this_copy[i] *= scale_i;
+            result[i] *= scale_i;
 
             // Delete values in ith column below this row
             for( size_t j = i + 1; j < size; ++j ) {
                 const float sub_row_scale = this_copy[{j, i}];
-                this_copy[j].subFrom(this_copy[i] * sub_row_scale);
-                result[j].subFrom(result[i] * sub_row_scale);
+                this_copy[j] -= this_copy[i] * sub_row_scale;
+                result[j] -= result[i] * sub_row_scale;
             }
 
             // Delete values in ith column above this row
             for( size_t j = 0; j < i; ++j ) {
                 const Tensor<1> row_sub = this_copy[i] * this_copy[{j, i}];
                 const float sub_row_scale = this_copy[{j, i}];
-                this_copy[j].subFrom(this_copy[i] * sub_row_scale);
-                result[j].subFrom(result[i] * sub_row_scale);
+                this_copy[j] -= this_copy[i] * sub_row_scale;
+                result[j] -= result[i] * sub_row_scale;
             }
         }
 
@@ -1605,7 +1686,7 @@ namespace jai {
     }
     template<size_t RANK>
     Tensor<RANK>::~Tensor() {
-        delete this->data_;
+        delete[] this->data_;
     }
     template<size_t RANK>
     Tensor<RANK>& Tensor<RANK>::operator = ( const Tensor<RANK>& other ) {
@@ -1620,7 +1701,7 @@ namespace jai {
         }
         // Free the previous data held in this Tensor, if a different size
         if( this->total_size != other.total_size ) {
-            delete this->data_;
+            delete[] this->data_;
             this->data_ = new float[other.total_size];
             this->total_size = other.total_size;
         }
@@ -1642,7 +1723,7 @@ namespace jai {
         }
         // Free the previous data held in this Tensor, if a different size
         if( this->total_size != other.total_size ) {
-            delete this->data_;
+            delete[] this->data_;
             this->data_ = new float[other.total_size];
             this->total_size = other.total_size;
         }
@@ -1658,7 +1739,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this Tensor.
-        delete this->data_;
+        delete[] this->data_;
 
         // Copy dimensions
         for( size_t i = 0; i < RANK; ++i ) {
@@ -1896,8 +1977,8 @@ namespace jai {
     }
     template<size_t RANK>
     RaggedTensor<RANK>::~RaggedTensor() {
-        delete this->inner_tensors;
-        delete this->data_;
+        delete[] this->inner_tensors;
+        delete[] this->data_;
     }
     template<size_t RANK>
     RaggedTensor<RANK>& RaggedTensor<RANK>::operator = ( const RaggedTensor<RANK>& other ) {
@@ -1906,7 +1987,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this RaggedTensor.
-        delete this->data_;
+        delete[] this->data_;
 
         this->total_size = other.total_size;
         // Allocate space for data and copy over
@@ -1934,7 +2015,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this RaggedTensor.
-        delete this->data_;
+        delete[] this->data_;
 
         this->total_size = other.total_size;
         // Allocate space for data and copy over
@@ -1968,7 +2049,7 @@ namespace jai {
             return *this;
         }
         // Free the previous data held in this RaggedTensor.
-        delete this->data_;
+        delete[] this->data_;
 
         // Move data to this RaggedTensor
         this->total_size = other.total_size;
@@ -2104,21 +2185,49 @@ namespace jai {
         setValues(tensor.data_, this->data_, this->total_size);
     }
     template<size_t RANK>
-    void RaggedTensor<RANK>::addTo( const RaggedTensor<RANK>& other ) {
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator += ( const RaggedTensor<RANK>& other ) {
         // Add other's values
         addValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
     }
     template<size_t RANK>
-    void RaggedTensor<RANK>::subFrom( const RaggedTensor<RANK>& other ) {
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator -= ( const RaggedTensor<RANK>& other ) {
         // Subtract other's values
         subtractValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
     }
     template<size_t RANK>
-    void RaggedTensor<RANK>::scaleBy( const float scale ) {
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator *= ( const RaggedTensor<RANK>& other ) {
+        // Add other's values
+        multiplyValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator /= ( const RaggedTensor<RANK>& other ) {
+        // Subtract other's values
+        divideValues(this->data_, other.data_, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator *= ( const float scale ) {
         // Multiply by scale
         multiplyValuesByScalar(this->data_, scale, this->data_, this->total_size);
+        return *this;
     }
-    
+    template<size_t RANK>
+    RaggedTensor<RANK>& RaggedTensor<RANK>::operator /= ( const float scale ) {
+        // Multiply by scale
+        multiplyValuesByScalar(this->data_, 1.0f / scale, this->data_, this->total_size);
+        return *this;
+    }
+    template<size_t RANK>
+    template<typename Func>
+    void RaggedTensor<RANK>::transform( Func transform_function ) {
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            this->data_[i] = transform_function(this->data_[i]);
+        }
+    }
+
     template<size_t RANK>
     size_t RaggedTensor<RANK>::rank() const {
         return RANK;

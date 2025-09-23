@@ -397,8 +397,9 @@ namespace jai {
          * Gets an input to propagate through a neural network and places it into
          * `training_input`, and gets the expected output for that input and places it
          * into `training_expected_output`.
+         * Returns true if all data has been retrieved, and false otherwise.
          */
-        virtual Vector retrieveDatapoint( 
+        virtual bool retrieveDatapoint( 
             BaseVector& training_input,
             BaseVector& training_expected_output
         ) = 0;
@@ -428,14 +429,14 @@ namespace jai {
              */
             float error_tolerance =         0.1f;
             /**
-             * The maximum number of passes over the entire training set.
-             * Training will stop even if the desired error tolerance is not achieved.
-             */
-            size_t epochs =                 10;  
-            /**
              *  The maximum size of each batch to train on.
              */  
             size_t batch_size =             1000;
+            /**
+             * The maximum number of passes over the entire training set.
+             * Training will stop even if the desired error tolerance is not achieved.
+             */
+            size_t max_epochs =             10;  
             /**
              * The regularization strength applied to the gradients to encourage smaller
              * network weights and bias'
@@ -515,9 +516,16 @@ namespace jai {
          * Returns a reference to the final results, which is contained at the end of 
          * `propagated_vals`.
          */
-        VVector propagate( 
+        VVector propagate(
             const BaseVector& inputs,
             RaggedTensor<3>& propagated_vals
+        ) const;
+        /**
+         * 
+         */
+        VVector propagate(
+            const BaseMatrix& inputs,
+            RaggedTensor<4>& propagated_vals
         ) const;
 
         /**
@@ -536,6 +544,15 @@ namespace jai {
             RaggedMatrix& bias_gradients
         ) const;
         /**
+         * 
+         */
+        void backpropagate(
+            const BaseMatrix& inputs, 
+            const BaseMatrix& loss_D,
+            RaggedTensor<3>& weight_gradients,
+            RaggedMatrix& bias_gradients
+        ) const;
+        /**
          * Backpropagates through the network using the precomputed `propagated_vals`
          * and `loss_D` to find the gradients for the weights and bias'.
          * `loss_D` is the gradient of the loss function with respect to the output nodes.
@@ -547,6 +564,15 @@ namespace jai {
             const BaseVector& loss_D, 
             RaggedTensor<3>& weight_gradients,
             RaggedMatrix& bias_gradients
+        ) const;
+        /**
+         * 
+         */
+        void backpropagate(
+            const RaggedTensor<4>& propagated_vals, 
+            const BaseMatrix& loss_D, 
+            RaggedTensor<4>& weight_gradients,
+            RaggedTensor<3>& bias_gradients
         ) const;
 
         /**
@@ -574,6 +600,16 @@ namespace jai {
          * Sets random network weights and bias' based on Xavier initialization
          */
         void xavierInit();
+
+        /**
+         * Updates the weights and bias' of the network with the given `weight_gradients`
+         * and `bias_gradients`.
+         * `weight_gradients` and `bias_gradients` must match the size of the network.
+         */
+        void updateNetwork(
+            const RaggedTensor<3> weight_gradients,
+            const RaggedMatrix bias_gradients
+        );
 
         /**
          * Trains `this` NeuralNetwork using the `training_inputs` and
@@ -1073,6 +1109,34 @@ namespace jai {
             }
             layer_sizes[layer_count - 1] = output_layer_size;
         }
+
+        template<size_t RANK>
+        void updateAndApplyMomentums(
+            RaggedTensor<RANK>& policy_gradients,
+            RaggedTensor<RANK>& policy_momentums,
+            RaggedTensor<RANK>& policy_sqr_momentums,
+            const size_t policy_updates,
+            const NeuralNetwork::Hyperparameters& hp
+        ) {
+            const float m_decay = hp.momentum_decay;
+            const float sqr_m_decay = hp.sqr_momentum_decay;
+            // Update momentums
+            const RaggedTensor<3> policy_gradients_complement = policy_gradients * (1 - m_decay);
+            policy_momentums = (policy_momentums * m_decay) + 
+                               (policy_gradients_complement);
+            policy_sqr_momentums = (policy_sqr_momentums * sqr_m_decay) +
+                                   (policy_gradients * policy_gradients_complement);
+
+            // Calculate m_hat from momentums to shrink effect of momentum over time
+            const RaggedTensor<3> m_hat = policy_momentums / (1 - std::pow(m_decay, policy_updates + 1));
+            RaggedTensor<3> sqr_m_hat = policy_sqr_momentums / (1 - std::pow(sqr_m_decay, policy_updates + 1));
+            sqr_m_hat.transform([]( float val ) {
+                return std::sqrt(val) + NN_EPSILON;
+            });
+
+            // Update gradients
+            policy_gradients = m_hat / sqr_m_hat;
+        }
     }
 
 
@@ -1207,8 +1271,9 @@ namespace jai {
             // Propagate through network
             Vector propagated_x = this->weights[i].mul(y) + this->bias[i];
             // Apply activations
+            y = Vector(propagated_x.size());
             this->layer_activations[i]->fn(
-                propagated_x, 
+                propagated_x,
                 y
             );
         }
@@ -1229,7 +1294,7 @@ namespace jai {
     VVector NeuralNetwork::propagate(
         const BaseVector& inputs,
         RaggedTensor<3>& propagated_vals
-    ) const  {
+    ) const {
         // Set the inputs values as the stored values for both sides of the input layer
         propagated_vals[0][0].set(inputs);
         propagated_vals[0][1].set(inputs);
@@ -1291,14 +1356,14 @@ namespace jai {
                 VVector delta_i_po = bias_gradients[i + 1];
                 post_D = this->weights[i + 1].transpose().mul(delta_i_po);
             }
-            VVector delta_i = bias_gradients[i];
 
             // Calculate layer bias gradients
+            VVector delta_i = bias_gradients[i];
             const VVector x_i = propagated_vals[i + 1][0];
             this->layer_activations[i]->fn_D(
                 x_i,
                 post_D,
-                // Assign delta_i, which assigns gradient for bias layer
+                // Assign delta_i, which assigns the gradient for this bias layer
                 delta_i
             );
 
@@ -1315,8 +1380,11 @@ namespace jai {
         RaggedMatrix& bias_gradients, 
         const float regularization_strength
     ) const {
-        weight_gradients.addTo( (2 * regularization_strength) * this->weights );
-        bias_gradients.addTo( (2 * regularization_strength) * this->bias );
+        if( regularization_strength == 0 ) {
+            return;
+        }
+        weight_gradients += (2 * regularization_strength) * this->weights;
+        bias_gradients += (2 * regularization_strength) * this->bias;
     }
 
     void NeuralNetwork::randomInit( const float min, const float max ){
@@ -1372,6 +1440,14 @@ namespace jai {
         this->bias.fill(0);
     }
 
+    void NeuralNetwork::updateNetwork(
+        const RaggedTensor<3> weight_gradients,
+        const RaggedMatrix bias_gradients
+    ) {
+        this->weights -= weight_gradients;
+        this->bias -= bias_gradients;
+    }
+        
     Vector NeuralNetwork::train( 
         const BaseMatrix& training_inputs,
         const BaseMatrix& training_expected_outputs,
@@ -1397,27 +1473,109 @@ namespace jai {
             throw std::invalid_argument("The loss function input size must match the network output layer size");
         }
 
+        const size_t n = training_inputs.size(0);
         const Hyperparameters& hp = training_hyperparameters;
 
         // Store losses in std::vector
         std::vector<float> losses;
+        losses.reserve(hp.max_epochs * std::ceil(n / hp.batch_size));
 
-
+        // Store momentums
+        RaggedTensor<3> weight_momentums = this->weights.emptied();
+        RaggedTensor<3> weight_sqr_momentums = this->weights.emptied();
+        RaggedMatrix bias_momentums = this->bias.emptied();
+        RaggedMatrix bias_sqr_momentums = this->bias.emptied();
 
         // Create vector with datapoint indexes
-        std::vector<int> datapoint_indexes = std::vector<int>(n);
-        for(int l = 0; l < n; ++l)
-            datapoint_indexes[l] = l;
+        std::vector<size_t> indexes = std::vector<size_t>(n);
+        for( size_t i = 0; i < n; ++i ) {
+            indexes[i] = i;
+        }
         // Create random number generator to shuffle indexes
         std::random_device rd;
         std::mt19937 rd_gen(rd());
 
+        // Start training
+        size_t epochs = 0;
+        size_t policy_updates = 0;
+        float error = NN_INFINITY;
+        while( error >= hp.error_tolerance && epochs < hp.max_epochs ) {
+            // Shuffle indexes
+            std::shuffle(indexes.begin(), indexes.end(), rd_gen);
 
+            // Iterate over each batch
+            size_t i = 0;
+            while( i < n ) {
+                // Create reused tensors
+                Vector loss_D(this->output_layer_size);
+                RaggedTensor<3> propagated_vals = this->getEmptyPropagationTensor();
+                RaggedTensor<3> weight_gradients = this->weights.emptied();
+                RaggedMatrix bias_gradients = this->bias.emptied();
+                // Create accumulating variables
+                float loss_sum = 0;
+                RaggedTensor<3> total_weight_gradients = this->weights.emptied();
+                RaggedMatrix total_bias_gradients = this->bias.emptied();
 
+                // Iterate over each datapoint in the batch and add to the gradients
+                size_t j = 0;
+                while( j < hp.batch_size && i < n ) {
+                    const size_t index = indexes[i];
+                    // Propagate through network
+                    VVector output = this->propagate(training_inputs[index], propagated_vals);
+                    // Calculate loss and loss_D
+                    loss_sum += loss_function.fn(output, training_expected_outputs[index]);
+                    loss_function.fn_D(output, training_expected_outputs[index], loss_D);
+                    // Backpropagate for gradients
+                    this->backpropagate(propagated_vals, loss_D, weight_gradients, bias_gradients);
+                    total_weight_gradients += weight_gradients;
+                    total_bias_gradients += bias_gradients;
 
+                    ++i; ++j;
+                }
+
+                // Save average loss for this batch
+                error = loss_sum / j;
+                losses.push_back(error);
+                // Average gradients
+                total_weight_gradients /= j;
+                total_bias_gradients /= j;
+
+                // Apply regularization to gradients
+                this->applyRegularization(
+                    total_weight_gradients, 
+                    total_bias_gradients, 
+                    hp.regularization_strength
+                );
+                // Apply momentums to gradients
+                updateAndApplyMomentums(
+                    total_weight_gradients,
+                    weight_momentums,
+                    weight_sqr_momentums,
+                    policy_updates,
+                    hp
+                );
+                updateAndApplyMomentums(
+                    total_bias_gradients,
+                    bias_momentums,
+                    bias_sqr_momentums,
+                    policy_updates,
+                    hp
+                );
+                // Update the network with the final gradients
+                this->updateNetwork(
+                    total_weight_gradients * hp.learning_rate,
+                    total_bias_gradients * hp.learning_rate
+                );
+
+                ++policy_updates;
+            }
+
+            ++epochs;
+        }
 
         return Vector(losses.size(), losses.data());
     }
+    // TODO: Implement
     Vector NeuralNetwork::train(
         SimpleDataStream& training_data_stream,
         const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
@@ -1434,6 +1592,10 @@ namespace jai {
         if( !loss_function.isValidLayerSize(this->output_layer_size) ) {
             throw std::invalid_argument("The loss function input size does not match the network output layer size");
         }
+
+
+
+        throw "NOT IMPLEMENTED";
     }
 
     size_t NeuralNetwork::getInputLayerSize() const {
@@ -1469,252 +1631,6 @@ namespace jai {
         }
 
         return RaggedTensor<3>(layer_count, inner_matrix_sizes);
-    }
-
-
-
-
-
-    void NeuralNetwork::backpropagateStore( const float* inputs, const float* loss_d ) {
-        // Check if propagated node values have been cached
-        if( propagate_vals_cache.size() == 0 ) {
-            return;
-        }
-        const float* prev_node_vals = propagate_vals_cache.data();
-        const float* post_node_vals = prev_node_vals + this->getBiasCount();
-
-        // Initialize internal cache of gradient values, if not initialized yet
-        if( gradient_vals_cache.size() == 0 ) {
-            gradient_vals_cache.resize(this->getWeightCount() + this->getBiasCount(), 0.0f);
-        }
-        float* weight_grad = gradient_vals_cache.data();
-        float* bias_grad = weight_grad + this->getWeightCount();
-
-        // Sum of weights pointing back into each vertice
-        float weight_sums[hidden_layer_size];
-        float prev_weight_sums[hidden_layer_size];
-        for(int j = 0; j < hidden_layer_size; j++)
-            weight_sums[j] = 0;
-        
-        // The starting index of the weights pointing into a given node
-        int weight_start_index = this->getNodeWeightsIndex(bias.size()-1);
-
-        // Find grads for output nodes
-        {
-        const int this_layer_start_index = this->getBiasLayerIndex(hidden_layer_count);
-        const int prev_layer_start_index = this->getBiasLayerIndex(hidden_layer_count-1);
-        // Calculate output derviatives
-        float prev_outputs_d[output_layer_size];
-        output_layer_activation.fn_d(prev_node_vals + this_layer_start_index, loss_d, prev_outputs_d);
-        for(int i = output_layer_size-1; i >= 0; --i){
-            const int node_index = this_layer_start_index + i;
-            // Bias
-                                        //output_layer_activation[i].fn_d(prev_node_vals[node_index])
-            bias_grad[node_index] = (1) * prev_outputs_d[i];
-            
-            // Weights
-            for(int j = hidden_layer_size-1; j >= 0; --j){
-                weight_grad[weight_start_index + j] = post_node_vals[prev_layer_start_index + j] * bias_grad[node_index]; 
-                weight_sums[j] += weights[weight_start_index + j] * bias_grad[node_index];
-                // Average the derivatives here, because this is where the output derivatives "meet up"
-                weight_sums[j] /= output_layer_size;
-            }
-
-            weight_start_index -= hidden_layer_size;
-        }}
-
-        // Find grads between hidden nodes
-        for(int k = hidden_layer_count-1; k >= 1; --k){
-            for(int j = 0; j < hidden_layer_size; j++){
-                prev_weight_sums[j] = weight_sums[j];
-                weight_sums[j] = 0;
-            }
-
-            const int this_layer_start_index = this->getBiasLayerIndex(k);
-            const int prev_layer_start_index = this->getBiasLayerIndex(k-1);
-            for(int i = hidden_layer_size-1; i >= 0; --i){
-                const int node_index = this_layer_start_index + i;
-                // Bias
-                bias_grad[node_index] = (1) * hidden_activation.fn_d(prev_node_vals[node_index]) * prev_weight_sums[i];
-
-                // Weights
-                for(int j = hidden_layer_size-1; j >= 0; --j){
-                    weight_grad[weight_start_index + j] = post_node_vals[prev_layer_start_index+j] * bias_grad[node_index]; 
-                    weight_sums[j] += weights[weight_start_index + j] * bias_grad[node_index];
-                }
-                
-                weight_start_index -= hidden_layer_size;
-            }
-        }
-        // Ensure start index accounts for difference in edges with the nodes in the first hidden layer
-        weight_start_index += hidden_layer_size;
-        weight_start_index -= input_layer_size;
-        
-        // Find grads for input nodes
-        {const int this_layer_start_index = this->getBiasLayerIndex(0);
-        for(int i = hidden_layer_size-1; i >= 0; --i){
-            const int node_index = this_layer_start_index + i;
-            // Bias
-            bias_grad[node_index] = (1) * hidden_activation.fn_d(prev_node_vals[node_index]) * (weight_sums[i]);
-            
-            // Weights
-            for(int j = input_layer_size-1; j >= 0; --j){
-                weight_grad[weight_start_index + j] = inputs[j] * bias_grad[node_index]; 
-            }
-            
-            weight_start_index -= input_layer_size;
-        }}
-    }
-    void NeuralNetwork::backpropagate( const float* inputs, const float* loss_d, const float regularization_strength, const float learning_rate ) {        
-        backpropagateStore(inputs, loss_d);
-
-        applyRegularization(regularization_strength);
-        applyGradients(learning_rate);
-    }
-
-    void NeuralNetwork::applyRegularization( const float regularization_strength ) {
-        // Check if gradient values have been cached
-        if( gradient_vals_cache.size() == 0 ) {
-            return;
-        }
-        // Add regularization to gradient
-        const size_t size = this->getWeightCount() + this->getBiasCount();
-        for( int i = 0; i < this->getWeightCount(); ++i ){
-            gradient_vals_cache[i] += 2 * weights[i] * regularization_strength;
-        }
-        for( int i = this->getWeightCount(); i < size; ++i ){
-            gradient_vals_cache[i] += 2 * bias[i] * regularization_strength;
-        }
-    }
-    void NeuralNetwork::applyGradients( const float learning_rate ) {
-        // Check if gradient values have been cached
-        if( gradient_vals_cache.size() == 0 ) {
-            return;
-        }
-        // Update weights and bias' with gradient
-        const size_t size = this->getWeightCount() + this->getBiasCount();
-        for( int i = 0; i < this->getWeightCount(); ++i ) {
-            weights[i] -= gradient_vals_cache[i] * learning_rate;
-        }
-        for( int i = this->getWeightCount(); i < size; ++i ) {
-            bias[i] -= gradient_vals_cache[i] * learning_rate;
-        }
-
-        // Clear propagate value cache and gradient
-        propagate_vals_cache.clear();
-        gradient_vals_cache.clear();
-    }
-
-    float NeuralNetwork::train( const float* inputs, const float* actual_outputs, const float learning_rate, const float regularization_strength ) {
-        return train(inputs, actual_outputs, SQUARED_DIFF(output_layer_size), regularization_strength, learning_rate);
-    }
-    float NeuralNetwork::train( const float* inputs, const float* actual_outputs, const LossFunction& loss_fn, const float learning_rate, const float regularization_strength ) {
-        // Check if the loss function has the correct size
-        if(loss_fn.output_size != output_layer_size) {
-            throw std::invalid_argument("Network output layer size does not match output activations size.");
-        }
-
-        // Propagate through network to get 
-        const float* outputs = this->propagateStore(inputs);
-
-        // Calculate loss derivative from expected (actual) output
-        float loss_d[output_layer_size];
-        loss_fn.fn_d(outputs, actual_outputs, loss_d);
-
-        // Backpropagate to train network
-        this->backpropagate(inputs, loss_d, learning_rate);
-
-        // Return loss
-        return loss_fn.fn(outputs, actual_outputs);
-    }
-    // NOT IMPLEMENTED
-    jai::Vector NeuralNetwork::batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
-                                       const size_t batch_size, const size_t epochs, const float learning_rate, 
-                                       const float regularization_strength, const float momentum_decay, const float sqr_momentum_decay ) {
-        return batchTrain(inputs, actual_outputs, SQUARED_DIFF(output_layer_size), batch_size, epochs, learning_rate, regularization_strength, momentum_decay, sqr_momentum_decay);
-    }
-    jai::Vector NeuralNetwork::batchTrain( const std::vector<float*>& inputs, const std::vector<float*>& actual_outputs, const LossFunction& loss_fn, 
-                                       const size_t batch_size, const size_t epochs, const float learning_rate, 
-                                       const float regularization_strength, const float momentum_decay, const float sqr_momentum_decay ) {        
-        throw "NOT IMPLEMENTED";
-        
-        // Check if the loss function has the correct size
-        if(loss_fn.output_size != output_layer_size) {
-            throw std::invalid_argument("Network output layer size does not match output activations size.");
-        }
-        // Check if number of inputs and actual outputs are the same
-        const size_t n = inputs.size();
-        if( actual_outputs.size() != n) {
-            throw std::invalid_argument("Number of inputs does not match the number of actual outputs.");
-        }
-
-        // Initialize vector that stores average loss after each batch
-        jai::Vector losses;
-        losses.reserve( epochs * (1 + n/batch_size) );
-
-        // Create vector with datapoint indexes
-        std::vector<int> datapoint_indexes = std::vector<int>(n);
-        for(int l = 0; l < n; ++l)
-            datapoint_indexes[l] = l;
-        // Create random number generator to shuffle indexes
-        std::random_device rd;
-        std::mt19937 rd_gen(rd());
-
-        // Repeat training over the dataset for the number of epochs
-        for( size_t k = 0; k < epochs; ++k ) {
-
-            size_t i = 0;
-            while( i < n ) {
-                // Shuffle datapoints
-                std::shuffle(datapoint_indexes.begin(), datapoint_indexes.end(), rd_gen);
-
-                // Calculate total gradient of batch
-                float total_loss = 0;
-                size_t j = 0;
-                while( j < batch_size  &&  i < n ) {
-
-
-
-                    ++j; ++i;
-                }
-                losses.push_back( total_loss / j);
-                
-
-                // Perform regularization and momentum
-
-                // 
-            }
-
-
-        }
-        
-
-        return losses;
-    }
-
-    // GETTERS
-    inline int NeuralNetwork::getWeightLayerIndex(const int layer) const {
-        const int first_layer_edge_count = input_layer_size*hidden_layer_size;
-        const int hidden_layer_edge_count = hidden_layer_size*hidden_layer_size;
-        
-        return (layer==0 ? 0 : first_layer_edge_count + hidden_layer_edge_count*(layer-1));
-    }
-    inline int NeuralNetwork::getBiasLayerIndex(const int layer) const {
-        return layer*hidden_layer_size;
-    }
-    inline int NeuralNetwork::getNodeWeightsIndex(const int node_index) const {
-        // Between input and first hidden layer
-        if(node_index < hidden_layer_size)
-            return node_index*input_layer_size;
-        else
-            return (hidden_layer_size*input_layer_size) + (node_index-hidden_layer_size)*hidden_layer_size;
-    }
-    inline int NeuralNetwork::getNodeWeightCount(const int node_index) const {
-        // Between input and first hidden layer
-        if(node_index < hidden_layer_size)
-            return input_layer_size;
-        else
-            return hidden_layer_size;
     }
 
     std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn ) {
