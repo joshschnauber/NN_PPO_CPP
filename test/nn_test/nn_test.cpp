@@ -179,7 +179,7 @@ void test_layer_activation() {
 void test_neural_network() {
     START_TESTING("NeuralNetwork")
 
-    
+
     // Get input arguments
     int c = 100;
     int hidden_layer_size = 2;
@@ -267,6 +267,7 @@ void test_neural_network() {
 
     END_TESTING
 }
+
 
 
 int main(int argc, char **argv){

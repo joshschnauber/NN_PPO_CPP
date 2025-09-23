@@ -4,8 +4,6 @@
  * This file contains utilities for unit testing.
  */
 
-#include <vector>
-
 
 
 /* Text coloring start and end escape sequences for Test Failures and Test Successes */

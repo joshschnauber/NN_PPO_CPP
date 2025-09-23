@@ -124,6 +124,7 @@ namespace jai {
      * Represents an exponential function of the form y = e^x.
      */
     class ExpActivation : public Activation {
+        public:
         float fn( const float x ) const override;
         float fn_D( const float x ) const override;
         std::unique_ptr<Activation> clone() const override;
@@ -252,7 +253,6 @@ namespace jai {
      */
     class SoftmaxLayerActivation : public LayerActivation {
         public:
-
         void fn( const BaseVector& x, BaseVector& y ) const override;
         void fn_D( const BaseVector& x, const BaseVector& ___, BaseVector& y_D ) const override;
         std::unique_ptr<LayerActivation> clone() const override;
@@ -265,7 +265,6 @@ namespace jai {
      */
     class SplitSoftmaxLayerActivation : public LayerActivation {
         public:
-
         /**
          * Constructs a split softmax layer activation.
          * `softmax_sizes` specifies that size of each independent softmax.
@@ -290,7 +289,6 @@ namespace jai {
      */
     class MixedSoftmaxLayerActivation : public LayerActivation {
         public:
-
         /**
          * Constructs a mixed softmax layer activation.
          * The i'th activation corresponds to the i'th node in the layer, and 
@@ -314,17 +312,20 @@ namespace jai {
     };
 
     /**
-     * This represents a loss function to be applied to the output of a neural network.
+     * This represents a loss function to be applied to the output of a neural network,
+     * using the expected output to calculate the loss.
      * It contains a function for the loss and its derivative.
+     * Called 'Simple' because it compares only the actual vs expected outputs, without
+     * considering other variables.
      * This is an abstract class intended to be overridden for specific functionality.
      */
-    class LossFunction {
+    class SimpleLossFunction {
         public:
         /**
          * The loss function on Vector `x`.
          * Places the result in Vector `y`.
          */
-        virtual float fn( const BaseVector& x, BaseVector& expected_x ) const = 0;
+        virtual float fn( const BaseVector& x, const BaseVector& expected_x ) const = 0;
         /**
          * The derivative of the activation function on Vector `x` using the .
          * Places the result in Vector `y`.
@@ -333,7 +334,7 @@ namespace jai {
         /**
          * Creates a `std::unique_ptr` that manages a new copy of `this` layer activation.
          */
-        virtual std::unique_ptr<LayerActivation> clone() const = 0;
+        virtual std::unique_ptr<SimpleLossFunction> clone() const = 0;
         /**
          * Checks if the `layer_size` is valid for this layer activation.
          */
@@ -349,46 +350,67 @@ namespace jai {
             const size_t test_count = 20, const int seed = 0
         ) const;
     };
-
-
-
-
-    // Struct that contains the loss function and it's derivative
-    // Only calculates loss using a network's outputted values and the actual values
-    struct LossFunction {
-        size_t output_size;
-        std::function<float(const float*, const float*)> fn;
-        std::function<void(const float*, const float*, float*)> fn_d;
+    /**
+     * Squared difference loss function.
+     * The value of the loss is the average of squared differences between the expected and
+     * actual values.
+     */
+    class SquaredDiffLossFunction : public SimpleLossFunction {
+        public:
+        float fn( const BaseVector& x, const BaseVector& expected_x ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const override;
+        std::unique_ptr<SimpleLossFunction> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
     };
-
-    // Loss functions
-    extern const LossFunction SQUARED_DIFF( const size_t output_size );
-    extern const LossFunction ABS_DIFF( const size_t output_size );
-
-
+    /**
+     * Absolute difference loss function.
+     * The value of the loss is the average of absolute differences between the expected and
+     * actual values.
+     */
+    class AbsoluteDiffLossFunction : public SimpleLossFunction {
+        public:
+        float fn( const BaseVector& x, const BaseVector& expected_x ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const override;
+        std::unique_ptr<SimpleLossFunction> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+    };
+    /**
+     * Cross entropy loss function.
+     * The inputs are expected to be probabilities that all add to 1.
+     */
+    class CrossEntropyLossFunction : public SimpleLossFunction {
+        public:
+        float fn( const BaseVector& x, const BaseVector& expected_x ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const override;
+        std::unique_ptr<SimpleLossFunction> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+    };
 
     /**
      * Abstract class for retreiving data for training a neural network over time.
+     * Called 'Simple' because it retrieves only an input and the expected output,
+     * with no other context.
      */
-    class DataStream {
+    class SimpleDataStream {
+        public:
         /**
          * Gets an input to propagate through a neural network and places it into
-         * `training_input`.
+         * `training_input`, and gets the expected output for that input and places it
+         * into `training_expected_output`.
          */
-        virtual Vector getInput( 
-            Vector& training_input 
+        virtual Vector retrieveDatapoint( 
+            BaseVector& training_input,
+            BaseVector& training_expected_output
         ) = 0;
         /**
-         * Gets the derivative of the loss function, with respect to the outputs of
-         * the neural network, and places them into `loss_D`.
+         * Returns the size of the datapoint training input
          */
-        virtual Vector getLoss_D(
-            const Vector& training_input,
-            const Vector& training_output,
-            Vector& loss_D
-        ) = 0;
+        virtual size_t inputSize() = 0;
+        /**
+         * Returns the size of the datapoint training output
+         */
+        virtual size_t outputSize() = 0;
     };
-
 
     /**
      * Class...
@@ -398,15 +420,38 @@ namespace jai {
         public:
 
         /**
-         * Struct representing the hyperparameters for training a neural network
+         * Struct representing the hyperparameters needed for training a neural network
          */
         struct Hyperparameters {
-            size_t epochs =                 1;    
-            float error_tolerance =         0.1f; // Do we ignore error_tolerance if epochs > 0 ?
+            /**
+             * The maximum error before training will stop.
+             */
+            float error_tolerance =         0.1f;
+            /**
+             * The maximum number of passes over the entire training set.
+             * Training will stop even if the desired error tolerance is not achieved.
+             */
+            size_t epochs =                 10;  
+            /**
+             *  The maximum size of each batch to train on.
+             */  
             size_t batch_size =             1000;
+            /**
+             * The regularization strength applied to the gradients to encourage smaller
+             * network weights and bias'
+             */
             float regularization_strength = 1e-5f;
+            /**
+             * The momentum decay applied to the gradients
+             */
             float momentum_decay =          0.900f;
+            /**
+             * The square momentum decay applied to the gradients
+             */
             float sqr_momentum_decay =      0.999f;
+            /**
+             * The learning rate applied to the gradients when updating the network.
+             */
             float learning_rate =           1e-2f;
         };
         
@@ -430,6 +475,17 @@ namespace jai {
             const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation())
         );
         /**
+         * Constructs a NeuralNetwork with `layer_count` layers, where each layer is 
+         * given the corresponding size from `layer_sizes`, as well as the activations, 
+         * with no weights or bias' set.
+         */
+        NeuralNetwork(
+            const size_t layer_count, 
+            const size_t layer_sizes[], 
+            const Activation& hidden_activation = ReLUActivation(), 
+            const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation())
+        );
+        /**
          * Constructs a NeuralNetwork using already existing weights and bias'.
          */
         NeuralNetwork(
@@ -439,11 +495,75 @@ namespace jai {
             const LayerActivation& output_layer_activation
         );
 
+        /* Accessors */
+        public:
+
+        /**
+         * Propagates through the network using the `inputs` Vector, and returns the
+         * final result.
+         */
+        Vector propagate( const BaseVector& inputs ) const;
+        /**
+         * Propagates through the network with each row in the `inputs` Matrix, and
+         * returns the final results in each corrsponding row in the returned matrix.
+         */
+        Matrix propagate( const BaseMatrix& inputs ) const;
+        /**
+         * Propagates through the network using the `inputs` Vector, and stores all of
+         * the propagated values internally in `propagated_vals`. The stored values
+         * consist of the values before and after the activation for each node.
+         * Returns a reference to the final results, which is contained at the end of 
+         * `propagated_vals`.
+         */
+        VVector propagate( 
+            const BaseVector& inputs,
+            RaggedTensor<3>& propagated_vals
+        ) const;
+
+        /**
+         * Backpropagates through the network using the `inputs` and `loss_D` to find the 
+         * gradients for the weights and bias'.
+         * Uses `inputs` to propagate through the network to get the propagated values
+         * for each node.
+         * `loss_D` is the gradient of the loss function with respect to the output nodes.
+         * The gradients for the weights and bias' are placed in `weight_gradients` and
+         * `bias_gradients` respectively.
+         */
+        void backpropagate(
+            const BaseVector& inputs, 
+            const BaseVector& loss_D, 
+            RaggedTensor<3>& weight_gradients,
+            RaggedMatrix& bias_gradients
+        ) const;
+        /**
+         * Backpropagates through the network using the precomputed `propagated_vals`
+         * and `loss_D` to find the gradients for the weights and bias'.
+         * `loss_D` is the gradient of the loss function with respect to the output nodes.
+         * The gradients for the weights and bias' are placed in `weight_gradients` and
+         * `bias_gradients` respectively.
+         */
+        void backpropagate(
+            const RaggedTensor<3>& propagated_vals, 
+            const BaseVector& loss_D, 
+            RaggedTensor<3>& weight_gradients,
+            RaggedMatrix& bias_gradients
+        ) const;
+
+        /**
+         * Applies L2 regularization to `weight_gradients` and `bias_gradients` using the
+         * `regularization_strength` and `this` NeuralNetwork's current weights and bias'.
+         */
+        void applyRegularization( 
+            RaggedTensor<3>& weight_gradients, 
+            RaggedMatrix& bias_gradients, 
+            const float regularization_strength
+        ) const;
+
         /* Mutators */
         public:
 
         /** 
-         * Sets random network weights and bias' between min and max
+         * Sets random network weights between min and max, and bias' to 0.
          */
         void randomInit( const float min = -1, const float max = 1 );
         /** 
@@ -456,155 +576,71 @@ namespace jai {
         void xavierInit();
 
         /**
-         * Propagates through the network using the `inputs` Vector, and places the
-         * final result in the `outputs` Vector.
+         * Trains `this` NeuralNetwork using the `training_inputs` and
+         * `training_expected_outputs`.
+         * Uses the `loss_function` and `training_hyperparameters` during training.
+         * Returns a Vector containing the calculated losses throughout training.
          */
-        void propagate( const BaseVector& inputs, BaseVector& outputs ) const;
-        /**
-         * Propagates through the network using the `inputs` Vector, and stores all of
-         * the propagated values internally in `propagated_vals`. 
-         * Returns a reference to the output Vector containing the final result, which
-         * is just the last column of `propagated_vals`.
-         */
-        const BaseVector& propagate( const BaseVector& inputs, RaggedMatrix& propagated_vals );
-        
-        // Find the gradients with the node values obtained from propagateStore() and update the bias and weights
-        /**
-         * 
-         */
-        void backpropagate(
-            const RaggedMatrix& propagated_vals, 
-            const BaseVector& loss_D, 
-            RaggedTensor<3>& weight_gradients,
-            RaggedMatrix& bias_gradients
-        );
-        // Find the gradients with the node values obtained from propagateStore() and store the gradients
-        // The loss_d is the derivative of the loss function in terms of the outputs
-        /**
-         * 
-         */
-        void backpropagateAndCache(
-            const BaseMatrix& propagated_vals, 
-            const BaseVector& loss_D
-        );
-
-
-
-        /**
-         * Updates the weights and bias using the cached gradients, using the given
-         * `learning_rate`.
-         */
-        void applyGradients( const float learning_rate);
-
-
-        /**
-         * 
-         */
-        std::vector<float> train( 
+        Vector train( 
             const BaseMatrix& training_inputs,
-            const BaseMatrix& training_actual_outputs,
-            const Hyperparameters& training_hyperparameters
+            const BaseMatrix& training_expected_outputs,
+            const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
+            const Hyperparameters& training_hyperparameters = Hyperparameters()
         );
         /**
-         * 
+         * Trains `this` NeuralNetwork using the the inputs and expected outputs from the
+         * `training_data_stream`.
+         * Uses the `loss_function` and `training_hyperparameters` during training.
+         * Returns a Vector containing the calculated losses throughout training.
          */
-        std::vector<float> train( 
-            DataStream& training_data_stream,
-            const Hyperparameters& training_hyperparameters
+        Vector train(
+            SimpleDataStream& training_data_stream,
+            const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
+            const Hyperparameters& training_hyperparameters = Hyperparameters()
         );
-
-        // Updates the network with backpropagation to bring the output closer to the actual output from the given input
-        // Returns the loss (or average loss)
-        float train( const BaseVector& inputs, const BaseVector& actual_outputs, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
-        float train( const BaseVector& inputs, const BaseVector& actual_outputs, const LossFunction& loss_fn, const float learning_rate = 1e-2f, const float regularization_strength = 1e-5f );
-        // Updates the network like train(), but trains all of the datapoints at once, with the given batch size.
-        jai::Vector batchTrain( const BaseMatrix& inputs, const BaseMatrix& actual_outputs, 
-                                       const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
-                                       const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
-        jai::Vector batchTrain( const BaseMatrix& inputs, const BaseMatrix& actual_outputs, const LossFunction& loss_fn, 
-                                       const size_t batch_size = SIZE_MAX, const size_t epochs = 1, const float learning_rate = 1e-2f, 
-                                       const float regularization_strength = 1e-5f, const float momentum_decay = 0.9f, const float sqr_momentum_decay = 0.999f );
-
-        
-
-        // Finds the start pointer for the weights in a given layer
-        // Layer 0 contains edges between the input and first hidden layer
-        inline int getWeightLayerIndex(const int layer) const;
-        // Finds the start pointer for the bias' in a given layer
-        // Layer 0 is the first hidden layer and the layer (hidden_layer_count) is the output layer (because there is (hidden_layer_count+1) total layers)
-        inline int getBiasLayerIndex(const int layer) const;
-        // Gets the start pointer for the weights pointing to the node at the given index
-        inline int getNodeWeightsIndex(const int node_index) const;
-        // Gets the number of weight edges pointing into the given bias node
-        inline int getNodeWeightCount(const int node_index) const;
-
-        // Get sizes for initializing external arrays
-        
-        inline size_t getPropagateNodeCount() const { return bias.totalSize(); }
-        inline size_t getWeightCount() const        { return weights.totalSize(); }
-        inline size_t getBiasCount() const          { return bias.totalSize(); }
-        inline size_t getHiddenLayerCount() const   { return hidden_layer_count; }
-        inline size_t getHiddenLayerSize() const    { return hidden_layer_size; }
-
-        // Gets difference between the two networks
-        float getWeightDiff(const NeuralNetwork& other) const;
-        float getBiasDiff(const NeuralNetwork& other) const;
-        
-
-
-        /* Static Helper Functions */
-        public:
-
-        /**
-         * Applies L2 regularization to gradients
-         */
-        static void applyRegularization( const float regularization_strength, RaggedTensor<3> weight_gradients );
-
-
 
         /* Getters */
         public:
         
         /**
-         * 
+         * Returns the size of the input layer.
          */
         size_t getInputLayerSize() const;
         /**
-         * 
+         * Returns the size of the output layer.
          */
         size_t getOutputLayerSize() const;
         /**
-         * 
+         * Returns the size of the layer at index `layer_index`, where the first layer is
+         * the input layer, and the final layer is the output layer.
          */
-        size_t getHiddenLayerSize( const size_t hidden_layer_index ) const;
+        size_t getLayerSize( const size_t layer_index ) const;
         /**
-         * 
+         * Returns the number of layers in `this` NeuralNetwork, including
+         * the input and output layers.
          */
-        size_t getHiddenLayerCount() const;
+        size_t getLayerCount() const;
         /**
-         * 
+         * Returns the weights in `this` NeuralNetwork
          */
         const RaggedTensor<3>& getWeights() const;
         /**
-         * 
+         * Returns the bias' in `this` NeuralNetwork
          */
         const RaggedMatrix& getBias() const;
+        /**
+         * Returns an empty RaggedTensor which is sized to store all propagated values
+         * for the propagate() function.
+         */
+        RaggedTensor<3> getEmptyPropagationTensor() const;
 
         /**
-         * 
+         * Writes the size of the NeuralNetwork `nn` and its weights and bias' to the
+         * stream `fs`.
          */
-        friend std::ostream& operator<< (std::ostream& fs, const NeuralNetwork& n);
+        friend std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn );
 
-        /* Private Functions */
-        private:
-
-        /**
-         * Recalculates needed values upon direct network size changes.
-         * Sets all weights and bias' to 0 and resets cached values.
-         */
-        void recalculate();
-
-        /* Network values */
+        /* NeuralNetwork member variables */
         private:
 
         /**
@@ -618,14 +654,6 @@ namespace jai {
         /**
          * 
          */
-        size_t hidden_layer_count;
-        /**
-         * 
-         */
-        size_t hidden_layer_size;
-        /**
-         * 
-         */
         jai::RaggedTensor<3> weights;
         /**
          * 
@@ -634,27 +662,7 @@ namespace jai {
         /**
          * 
          */
-        std::unique_ptr<Activation> hidden_activation;
-        /**
-         * 
-         */
-        std::unique_ptr<LayerActivation> output_layer_activation;
-
-        /* Cached values from propagation or backpropagation */
-        private:
-
-        /**
-         * 
-         */
-        jai::RaggedMatrix propagated_vals_cache;
-        /**
-         * 
-         */
-        jai::RaggedTensor<3> weight_gradients_cache;
-        /**
-         * 
-         */
-        jai::RaggedMatrix bias_gradients_cache;
+        std::vector<std::unique_ptr<LayerActivation>> layer_activations;
     };
 }
 
@@ -662,7 +670,7 @@ namespace jai {
 
 /* Implementation */
 namespace jai {
-    /* Activations */
+    /* Activations Implementation */
 
     bool Activation::verify( const float min, const float max, const float step ) const {
         // The distance from x used when estimating the slope between x and another point
@@ -819,7 +827,7 @@ namespace jai {
     }
     
     
-    /* LayerActivations */
+    /* LayerActivations Implementation */
 
     bool LayerActivation::verify( 
         const size_t layer_size, const float min, const float max,
@@ -970,61 +978,109 @@ namespace jai {
     }
 
 
-    /* LossFunction */
+    /* SimpleLossFunction Implementation */
 
-    const LossFunction SQUARED_DIFF( const size_t output_size ) {
-        return {
-            output_size,
-            [output_size](const float* out, const float* actual_out) {
-                float sqrd_sum = 0;
+    float SquaredDiffLossFunction::fn( const BaseVector& x, const BaseVector& expected_x ) const {
+        const size_t size = x.size();
+        
+        float squared_sum = 0;
+        for( size_t i = 0; i < size; ++i ) {
+            float diff = expected_x[i] - x[i];
+            squared_sum += diff * diff;
+        }
 
-                for( size_t i = 0; i < output_size; ++i ) {
-                    float diff = actual_out[i] - out[i];
-                    sqrd_sum += diff*diff;
-                }
+        return squared_sum / size;
+    }
+    void SquaredDiffLossFunction::fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const {
+        const size_t size = x.size();
+        for( size_t i = 0; i < size; ++i ) {
+            y_D[i] = -2 * (expected_x[i] - x[i]) / size;
+        }
+    }
+    std::unique_ptr<SimpleLossFunction> SquaredDiffLossFunction::clone() const {
+        return std::make_unique<SimpleLossFunction>(new SquaredDiffLossFunction());
+    }
+    bool SquaredDiffLossFunction::isValidLayerSize( size_t layer_size ) const {
+        return true;
+    }
 
-                return sqrd_sum / output_size;
-            },
-            [output_size](const float* out, const float* actual_out, float* d) {
-                for( size_t i = 0; i < output_size; ++i ) {
-                    d[i] = -2 * (actual_out[i] - out[i]);
-                }
+    float AbsoluteDiffLossFunction::fn( const BaseVector& x, const BaseVector& expected_x ) const {
+        const size_t size = x.size();
+        
+        float absolute_sum = 0;
+        for( size_t i = 0; i < size; ++i ) {
+            absolute_sum += std::abs(expected_x[i] - x[i]);
+        }
+
+        return absolute_sum / size;
+    }
+    void AbsoluteDiffLossFunction::fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const {
+        const size_t size = x.size();
+        for( size_t i = 0; i < size; ++i ) {
+            const float diff = (expected_x[i] - x[i]);
+            y_D[i] = (diff > 0)  ?  -1.0  :  1.0;
+        }
+    }
+    std::unique_ptr<SimpleLossFunction> AbsoluteDiffLossFunction::clone() const {
+        return std::make_unique<SimpleLossFunction>(new AbsoluteDiffLossFunction());
+    }
+    bool AbsoluteDiffLossFunction::isValidLayerSize( size_t layer_size ) const {
+        return true;
+    }
+
+    float CrossEntropyLossFunction::fn( const BaseVector& x, const BaseVector& expected_x ) const {
+        const size_t size = x.size();
+        
+        float sum = 0;
+        for( size_t i = 0; i < size; ++i ) {
+            sum += expected_x[i] * std::log(x[i]);
+        }
+
+        return -sum;
+    }
+    void CrossEntropyLossFunction::fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const {
+        const float EPSILON = 0.01f;
+        
+        const size_t size = x.size();
+        for( size_t i = 0; i < size; ++i ) {
+            float div = x[i];
+            if( div < EPSILON ) div = EPSILON;
+            y_D[i] = -expected_x[i] / x[i];
+        }
+    }
+    std::unique_ptr<SimpleLossFunction> CrossEntropyLossFunction::clone() const {
+        return std::make_unique<SimpleLossFunction>(new CrossEntropyLossFunction());
+    }
+    bool CrossEntropyLossFunction::isValidLayerSize( size_t layer_size ) const {
+        return true;
+    }
+
+
+    /* NeuralNetwork Helper Functions */
+    
+    namespace {
+        std::vector<size_t> constructLayerSizes( 
+            const size_t input_layer_size,
+            const size_t output_layer_size,
+            const size_t hidden_layer_size, 
+            const size_t hidden_layer_count
+        ) {
+            const size_t layer_count = 2 + hidden_layer_count;
+            std::vector<size_t> layer_sizes(layer_count);
+            layer_sizes[0] = input_layer_size;
+            for( size_t i = 1; i < layer_count - 1; ++i ) {
+                layer_sizes[i] = hidden_layer_size;
             }
-        };
-    };
-    const LossFunction ABS_DIFF( const size_t output_size ) {
-        return {
-            output_size,
-            [output_size](const float* out, const float* actual_out) {
-                float abs_sum = 0;
-
-                for( int i = 0; i < output_size; ++i ) {
-                    abs_sum += std::abs(actual_out[i] - out[i]);
-                }
-
-                return abs_sum;
-            },
-            [output_size](const float* out, const float* actual_out, float* d) {
-                for( int i = 0; i < output_size; ++i ) {
-                    const float diff = actual_out[i] - out[i];
-                    d[i] = (diff > 0)  ?  -1.0  :  1.0;
-                }
-            }
-        };
-    };
+            layer_sizes[layer_count - 1] = output_layer_size;
+        }
+    }
 
 
-    /* DataStream */
-
-
-    /* NeuralNetwork */
+    /* NeuralNetwork Implementation */
 
     NeuralNetwork::NeuralNetwork() { 
-        // Set sizes to 0
         this->input_layer_size = 0;
         this->output_layer_size = 0;
-        this->hidden_layer_size = 0;
-        this->hidden_layer_count = 0;
     }
     NeuralNetwork::NeuralNetwork(   
         const size_t input_layer_size, 
@@ -1033,187 +1089,391 @@ namespace jai {
         const size_t hidden_layer_count,
         const Activation& hidden_activation, 
         const LayerActivation& output_layer_activation 
+    ) : NeuralNetwork(
+        2 + hidden_layer_count, 
+        constructLayerSizes(
+            input_layer_size,
+            output_layer_size,
+            hidden_layer_size,
+            hidden_layer_count
+        ).data(),
+        hidden_activation,
+        output_layer_activation
+    ) { }
+    NeuralNetwork::NeuralNetwork(
+        const size_t layer_count,
+        const size_t layer_sizes[],
+        const Activation& hidden_activation, 
+        const LayerActivation& output_layer_activation
     ) {
         // Check if network sizes are invalid
-        if( input_layer_size < 1  ||  output_layer_size < 1 ) {
-            throw std::invalid_argument("Cannot have input or output layer with size 0.");
+        if( layer_count < 2 ) {
+            throw std::invalid_argument("Must have at least 2 layers.");
         }
-        if( hidden_layer_size < 1  ||  hidden_layer_count < 1 ) {
-            throw std::invalid_argument("Cannot have hidden layer with size 0.");
+        for( size_t i = 0; i < layer_count; ++i ) {
+            if( layer_sizes[i] < 1 ) {
+                throw std::invalid_argument("All layers must have a size greater than 0. ");
+            }
         }
         if( !output_layer_activation.isValidLayerSize(output_layer_size) ) {
-            throw std::invalid_argument("Network output layer size does not match output activations size.");
+            throw std::invalid_argument("Network output layer size does not match output layer activation size.");
         }
         
         // Set sizes
-        this->input_layer_size = input_layer_size;
-        this->output_layer_size = output_layer_size;
-        this->hidden_layer_size = hidden_layer_size;
-        this->hidden_layer_count = hidden_layer_count;
+        this->input_layer_size = layer_sizes[0];
+        this->output_layer_size = layer_sizes[layer_count - 1];
+
+        // Create weights tensor
+        std::vector<size_t[2]> weights_inner_tensor_dims(layer_count - 1);
+        for( size_t i = 0; i < layer_count - 1; ++i ) {
+            weights_inner_tensor_dims[i][0] = layer_sizes[i + 1];
+            weights_inner_tensor_dims[i][1] = layer_sizes[i];
+        }
+        this->weights = RaggedTensor<3>(layer_count - 1, weights_inner_tensor_dims.data());
+
+        // Create bias' tensor
+        std::vector<size_t> bias_inner_tensor_dims(layer_count - 1);
+        for( size_t i = 0; i < layer_count - 1; ++i ) {
+            bias_inner_tensor_dims[i] = layer_sizes[i + 1];
+        }
+        this->bias = RaggedMatrix(layer_count - 1, bias_inner_tensor_dims.data());
+
         // Set activation functions
-        this->hidden_activation = hidden_activation.clone();
-        this->output_layer_activation = output_layer_activation.clone();
-        // Calculate total nodes and edges
-        recalculate();
+        for( size_t i = 0; i < layer_count - 2; ++i ) {
+            this->layer_activations.push_back(
+                std::make_unique<UniformLayerActivation>(UniformLayerActivation(hidden_activation))
+            );
+        }
+        this->layer_activations.push_back(
+            output_layer_activation.clone()
+        );
+    }
+    NeuralNetwork::NeuralNetwork(
+        const RaggedTensor<3>& weights,
+        const RaggedMatrix& bias,
+        const Activation& hidden_activation,
+        const LayerActivation& output_layer_activation
+    ) {
+        // Check that the sizes of the weights and bias' match
+        if( weights.dim1Size() != bias.dim1Size() ) {
+            throw std::invalid_argument("The weights and bias' Tensors must correspond to the same number of layers.");
+        }
+        for( size_t i = 0; i < bias.dim1Size(); ++i ) {
+            if( bias[i].size() != weights[i].size(1) ) {
+                throw std::invalid_argument("The bias' and weights Tensor must match.");
+            }
+        }
+        for( size_t i = 0; i < bias.dim1Size() - 1; ++i ) {
+            if( bias[i].size() != weights[i + 1].size(0) ) {
+                throw std::invalid_argument("The bias' and weights Tensor must match");
+            }
+        }
+        // Check if network sizes are invalid
+        if( bias.dim1Size() < 1 ) {
+            throw std::invalid_argument("Must have at least 2 layers.");
+        }
+        for( size_t i = 0; i < bias.dim1Size(); ++i ) {
+            if( bias[i].size() < 1 ) {
+                throw std::invalid_argument("All layers must have a size greater than 0. ");
+            }
+        }
+        if( !output_layer_activation.isValidLayerSize(output_layer_size) ) {
+            throw std::invalid_argument("Network output layer size does not match output layer activation size.");
+        }
+
+        // Set sizes
+        this->input_layer_size = weights[0].size(0);
+        this->output_layer_size = weights[weights.dim1Size() - 1].size(1);
+
+        // Set weights and bias'
+        this->weights = weights;
+        this->bias = bias;
+
+        // Set activation functions
+        const size_t layer_count = weights.dim1Size() + 1;
+        for( size_t i = 0; i < layer_count - 2; ++i ) {
+            this->layer_activations.push_back(
+                std::make_unique<UniformLayerActivation>(UniformLayerActivation(hidden_activation))
+            );
+        }
+        this->layer_activations.push_back(
+            output_layer_activation.clone()
+        );
     }
 
-    // INITIALIZATION
+    Vector NeuralNetwork::propagate( const BaseVector& inputs ) const {
+        Vector y = inputs;
+        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+            // Propagate through network
+            Vector propagated_x = this->weights[i].mul(y) + this->bias[i];
+            // Apply activations
+            this->layer_activations[i]->fn(
+                propagated_x, 
+                y
+            );
+        }
+
+        return y;
+    }
+    Matrix NeuralNetwork::propagate( const BaseMatrix& inputs ) const  {
+        Matrix outputs({inputs.size(0), this->output_layer_size});
+        
+        for( size_t i = 0; i < inputs.size(0); ++i ) {
+            outputs[i].set( 
+                this->propagate(inputs[i]) 
+            );
+        }
+
+        return outputs;
+    }
+    VVector NeuralNetwork::propagate(
+        const BaseVector& inputs,
+        RaggedTensor<3>& propagated_vals
+    ) const  {
+        // Set the inputs values as the stored values for both sides of the input layer
+        propagated_vals[0][0].set(inputs);
+        propagated_vals[0][1].set(inputs);
+
+        VVector y = propagated_vals[0][1];
+        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+            VMatrix layer_values = propagated_vals[i + 1];
+            // Propagate through network
+            VVector pre_activation = layer_values[0];
+            pre_activation.set(
+                this->weights[i].mul(y) + this->bias[i]
+            );
+            // Apply activations
+            VVector post_activation = layer_values[1];
+            this->layer_activations[i]->fn(
+                pre_activation, 
+                post_activation
+            );
+
+            y = post_activation;
+        }
+
+        return y;
+    }
+
+    void NeuralNetwork::backpropagate(
+        const BaseVector& inputs, 
+        const BaseVector& loss_D, 
+        RaggedTensor<3>& weight_gradients,
+        RaggedMatrix& bias_gradients
+    ) const {
+        // Get propagated values
+        RaggedTensor<3> propagated_vals = this->getEmptyPropagationTensor();
+        this->propagate(inputs, propagated_vals);
+
+        // Do backpropagation
+        this->backpropagate(
+            propagated_vals,
+            loss_D,
+            weight_gradients,
+            bias_gradients
+        );
+    }
+    void NeuralNetwork::backpropagate(
+        const RaggedTensor<3>& propagated_vals, 
+        const BaseVector& loss_D, 
+        RaggedTensor<3>& weight_gradients,
+        RaggedMatrix& bias_gradients
+    ) const {
+        const size_t layer_count = this->getLayerCount();
+
+        // Calculate gradients for hidden layers
+        for( size_t i = layer_count - 2; i > 0; --i ) {
+            // If on last layer, use loss_D for post_D
+            Vector post_D;
+            if (i == layer_count - 2) {
+                post_D = loss_D;
+            } else {
+                VVector delta_i_po = bias_gradients[i + 1];
+                post_D = this->weights[i + 1].transpose().mul(delta_i_po);
+            }
+            VVector delta_i = bias_gradients[i];
+
+            // Calculate layer bias gradients
+            const VVector x_i = propagated_vals[i + 1][0];
+            this->layer_activations[i]->fn_D(
+                x_i,
+                post_D,
+                // Assign delta_i, which assigns gradient for bias layer
+                delta_i
+            );
+
+            // Calculate layer weight gradients
+            const VVector y_i_mo = propagated_vals[(i + 1) - 1][1];
+            weight_gradients[i].set(
+                delta_i.mul(y_i_mo.transpose())
+            );
+        }
+    }
+
+    void NeuralNetwork::applyRegularization( 
+        RaggedTensor<3>& weight_gradients, 
+        RaggedMatrix& bias_gradients, 
+        const float regularization_strength
+    ) const {
+        weight_gradients.addTo( (2 * regularization_strength) * this->weights );
+        bias_gradients.addTo( (2 * regularization_strength) * this->bias );
+    }
+
     void NeuralNetwork::randomInit( const float min, const float max ){
-        for(int i = 0; i < weights.size(); i++){
-            weights[i] = ((double) std::rand() / RAND_MAX)*(max-min) + min;
+        std::random_device rd;
+        std::mt19937 rd_gen(rd());
+        std::uniform_real_distribution dst(0.0, 1.0);
+        
+        // Assign weights
+        const float range = max - min;
+        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+            this->weights[i].transform(
+                [min, range, &dst, &rd_gen](const size_t[2], const float) {
+                    return (dst(rd_gen) * range) + min;
+                }
+            );
         }
-        for(int i = 0; i < bias.size(); i++){
-            bias[i] = 0.0f;
-        }
+        // Set bias' to 0
+        this->bias.fill(0);
     }
     void NeuralNetwork::kaimingInit(){
         std::random_device rd;
         std::mt19937 rd_gen(rd());
         std::normal_distribution dst(0.0f, 1.0f);
 
-        const int input_weight_end_index = input_layer_size*hidden_layer_size;
-        for(int i = 0; i < weights.size(); i++){
-            int n_in = hidden_layer_size;
-            if(i < input_weight_end_index)
-                n_in = input_layer_size;
-
-            weights[i] = dst(rd_gen) * std::sqrt(2.0f/n_in);
-        }
-        for(int i = 0; i < bias.size(); i++){
-            bias[i] = 0;
-        }
-    }
-
-    // NETWORK INTERFACE
-    const float* NeuralNetwork::propagateStore( const float* inputs ) {          
-        // Initialize internal cache of values, if not initialized yet
-        const size_t node_count = this->getBiasCount();
-        if( propagate_vals_cache.size() == 0 ) {
-            propagate_vals_cache.resize( node_count*2 );
-        }
-        float* prev_node_vals = propagate_vals_cache.data();
-        float* post_node_vals = prev_node_vals + node_count;
-
-        // The starting index of the weights pointing into a given node
-        int weight_start_index = 0;
-
-        // Propagate from input layer
-        {const int this_layer_start_index = this->getBiasLayerIndex(0);
-        for(int i = 0; i < hidden_layer_size; i++){
-            const int node_index = this_layer_start_index + i;
-            // Value at node before activation
-            prev_node_vals[node_index] = bias[node_index];
-            for(int j = 0; j < input_layer_size; j++){
-                prev_node_vals[node_index] += inputs[j] * weights[weight_start_index + j];
-            }
-            // Value at node after activation
-            post_node_vals[node_index] = hidden_activation.fn(prev_node_vals[node_index]);
-
-            weight_start_index += input_layer_size;
-        }}
-
-        // Propagate between hidden layers
-        for(int k = 1; k < hidden_layer_count; k++){
-            
-            const int this_layer_start_index = this->getBiasLayerIndex(k);
-            const int prev_layer_start_index = this->getBiasLayerIndex(k-1);
-            for(int i = 0; i < hidden_layer_size; i++){
-                const int node_index = this_layer_start_index + i;
-                // Value at node before activation
-                prev_node_vals[node_index] = bias[node_index];
-                for(int j = 0; j < hidden_layer_size; j++){
-                    prev_node_vals[node_index] += post_node_vals[prev_layer_start_index + j] * weights[weight_start_index + j];
+        // Assign weights
+        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+            const float bound = std::sqrt(2.0f / this->getLayerSize(i));
+            this->weights[i].transform(
+                [bound, &dst, &rd_gen](const size_t[2], const float) {
+                    return dst(rd_gen) * bound;
                 }
-                // Value at node after activation
-                post_node_vals[node_index] = hidden_activation.fn(prev_node_vals[node_index]);
-
-                weight_start_index += hidden_layer_size;
-            }
+            );
         }
-
-        // Propagate to output layer
-        const int output_layer_start_index = this->getBiasLayerIndex(hidden_layer_count);
-        const int prev_layer_start_index = this->getBiasLayerIndex(hidden_layer_count-1);
-        for(int i = 0; i < output_layer_size; i++){
-            const int node_index = output_layer_start_index + i;
-            // Value at node before activation
-            prev_node_vals[node_index] = bias[node_index];
-            for(int j = 0; j < hidden_layer_size; j++){
-                prev_node_vals[node_index] += post_node_vals[prev_layer_start_index + j] * weights[weight_start_index + j];
-            }
-            // Value at node after activation
-            weight_start_index += hidden_layer_size;
-        }
-        // Apply output activations
-        output_layer_activation.fn( prev_node_vals+output_layer_start_index, post_node_vals+output_layer_start_index );
-
-        // Return pointer to outputs
-        return (post_node_vals + output_layer_start_index);
+        // Set bias' to 0
+        this->bias.fill(0);
     }
-    void NeuralNetwork::propagate(const float* inputs, float* outputs) const {
-        // Arrays to hold the current layers computed values
-        float hidden_node_val[hidden_layer_size];
-        float prev_hidden_node_val[hidden_layer_size];
+    void NeuralNetwork::xavierInit() {
+        std::random_device rd;
+        std::mt19937 rd_gen(rd());
+        std::uniform_real_distribution dst(-1.0, 1.0);
 
-        // The starting index of the weights pointing into a given node
-        int weight_start_index = 0;
-
-        // Propagate from input layer
-        {const int this_layer_start_index = this->getBiasLayerIndex(0);
-        for(int i = 0; i < hidden_layer_size; ++i){
-            const int node_index = this_layer_start_index + i;
-
-            hidden_node_val[i] = bias[node_index];
-            for(int j = 0; j < input_layer_size; j++){
-                hidden_node_val[i] += inputs[j] * weights[weight_start_index + j];
-            }
-
-            hidden_node_val[i] = hidden_activation.fn(hidden_node_val[i]);
-
-            weight_start_index += input_layer_size;
-        }}
-
-        // Propagate between hidden layers
-        for(int k = 1; k < hidden_layer_count; ++k){
-            // Save previous hidden node values before setting new ones
-            for(int i = 0; i < hidden_layer_size; ++i){
-                prev_hidden_node_val[i] = hidden_node_val[i];
-            }
-
-            const int this_layer_start_index = this->getBiasLayerIndex(k);
-            const int prev_layer_start_index = this->getBiasLayerIndex(k-1);
-            for(int i = 0; i < hidden_layer_size; ++i){
-                const int node_index = this_layer_start_index + i;
-
-                hidden_node_val[i] = bias[node_index];
-                for(int j = 0; j < hidden_layer_size; ++j){
-                    hidden_node_val[i] += prev_hidden_node_val[j] * weights[weight_start_index + j];
+        // Assign weights
+        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+            const size_t layer_size_sum = this->getLayerSize(i) + this->getLayerSize(i + 1);
+            const float bound = 2.44948 / std::sqrt(layer_size_sum);
+            this->weights[i].transform(
+                [bound, &dst, &rd_gen](const size_t[2], const float) {
+                    return dst(rd_gen) * bound; 
                 }
+            );
+        }
+        // Set bias' to 0
+        this->bias.fill(0);
+    }
 
-                hidden_node_val[i] = hidden_activation.fn(hidden_node_val[i]);
-
-                weight_start_index += hidden_layer_size;
-            }
+    Vector NeuralNetwork::train( 
+        const BaseMatrix& training_inputs,
+        const BaseMatrix& training_expected_outputs,
+        const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
+        const Hyperparameters& training_hyperparameters = Hyperparameters()
+    ) {
+        // Check that the size of the data is valid
+        if( training_inputs.size(0) != training_expected_outputs.size(0) ) {
+            throw std::invalid_argument("The number of training inputs must be the same as the number of training outputs");
+        }
+        if( training_inputs.size(0) == 0 ) {
+            throw std::invalid_argument("There must be at least one data point");
+        }
+        // Check that the sizes of the given inputs and outputs match the network
+        if( training_inputs.size(1) != this->input_layer_size ) {
+            throw std::invalid_argument("The given training inputs must the network input layer size");
+        }
+        if( training_expected_outputs.size(1) != this->output_layer_size ) {
+            throw std::invalid_argument("The given training outputs must the network output layer size");
+        }
+        // Check that the loss function is the correct size
+        if( !loss_function.isValidLayerSize(this->output_layer_size) ) {
+            throw std::invalid_argument("The loss function input size must match the network output layer size");
         }
 
-        // Propagate to output layer
-        {float prev_outputs[output_layer_size];
-        const int this_layer_start_index = this->getBiasLayerIndex(hidden_layer_count);
-        for(int i = 0; i < output_layer_size; i++){
-            const int node_index = this_layer_start_index + i;
+        const Hyperparameters& hp = training_hyperparameters;
 
-            prev_outputs[i] = bias[node_index];
-            for(int j = 0; j < hidden_layer_size; j++){
-                prev_outputs[i] += hidden_node_val[j] * weights[weight_start_index + j];
-            }
-            //outputs[i] = output_layer_activation[i].fn( outputs[i] );
+        // Store losses in std::vector
+        std::vector<float> losses;
 
-            weight_start_index += hidden_layer_size;
+
+
+        // Create vector with datapoint indexes
+        std::vector<int> datapoint_indexes = std::vector<int>(n);
+        for(int l = 0; l < n; ++l)
+            datapoint_indexes[l] = l;
+        // Create random number generator to shuffle indexes
+        std::random_device rd;
+        std::mt19937 rd_gen(rd());
+
+
+
+
+
+        return Vector(losses.size(), losses.data());
+    }
+    Vector NeuralNetwork::train(
+        SimpleDataStream& training_data_stream,
+        const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
+        const Hyperparameters& training_hyperparameters = Hyperparameters()
+    ) {
+        // Check that the sizes of the inputs and outputs returned by the data stream match the network
+        if( training_data_stream.inputSize() != this->input_layer_size ) {
+            throw std::invalid_argument("The given inputs do not match the network input layer size");
         }
-        // Apply output activations
-        output_layer_activation.fn( prev_outputs, outputs );
+        if( training_data_stream.outputSize() != this->output_layer_size ) {
+            throw std::invalid_argument("The given outputs do not match the network output layer size");
+        }
+        // Check that the loss function is the correct size
+        if( !loss_function.isValidLayerSize(this->output_layer_size) ) {
+            throw std::invalid_argument("The loss function input size does not match the network output layer size");
         }
     }
+
+    size_t NeuralNetwork::getInputLayerSize() const {
+        return this->input_layer_size;
+    }
+    size_t NeuralNetwork::getOutputLayerSize() const {
+        return this->output_layer_size;
+    }
+    size_t NeuralNetwork::getLayerSize( const size_t layer_index ) const {
+        return (layer_index == 0) ?
+                this->input_layer_size :
+                this->bias[layer_index - 1].size();
+    }
+    size_t NeuralNetwork::getLayerCount() const {
+        return 1 + this->bias.dim1Size();
+    }
+    const RaggedTensor<3>& NeuralNetwork::getWeights() const {
+        return this->weights;
+    }
+    const RaggedMatrix& NeuralNetwork::getBias() const {
+        return this->bias;
+    }
+    RaggedTensor<3> NeuralNetwork::getEmptyPropagationTensor() const {
+        const size_t layer_count = this->getLayerCount();
+        size_t inner_matrix_sizes[layer_count][2];
+        // Set input layer size
+        inner_matrix_sizes[0][0] = input_layer_size;
+        inner_matrix_sizes[0][1] = 2;
+        // Set every layer after
+        for( size_t i = 1; i < layer_count; ++i ) {
+            inner_matrix_sizes[i][0] = this->bias[i].size();
+            inner_matrix_sizes[i][1] = 2;
+        }
+
+        return RaggedTensor<3>(layer_count, inner_matrix_sizes);
+    }
+
+
+
+
 
     void NeuralNetwork::backpropagateStore( const float* inputs, const float* loss_d ) {
         // Check if propagated node values have been cached
@@ -1457,58 +1717,23 @@ namespace jai {
             return hidden_layer_size;
     }
 
-    // DEBUGGING
-    float NeuralNetwork::getWeightDiff(const NeuralNetwork& other) const {
-        if(weights.size() != other.weights.size()){
-            throw std::invalid_argument("Networks are not the same size!");
+    std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn ) {
+        // Display layer sizes
+        fs << "Layers: ";
+        for(int i = 0; i < nn.getLayerCount(); i++) {
+            fs << nn.getLayerSize(i) << ' ';
         }
-
-        float sqrd_diff_sum;
-        for(int i = 0; i < weights.size(); ++i){
-            float diff = weights[i] - other.weights[i];
-            sqrd_diff_sum += diff*diff;
-        }
-        return std::sqrt(sqrd_diff_sum);
-    }
-    float NeuralNetwork::getBiasDiff(const NeuralNetwork& other) const {
-        if(bias.size() != other.bias.size()){
-            throw std::invalid_argument("Networks are not the same size!");
-        }
-
-        float sqrd_diff_sum;
-        for(int i = 0; i < bias.size(); ++i){
-            float diff = bias[i] - other.bias[i];
-            sqrd_diff_sum += diff*diff;
-        }
-        return std::sqrt(sqrd_diff_sum);
-    }
-    std::ostream& operator<< (std::ostream& fs, const NeuralNetwork& n){
-        // Layer sizes
-        fs << "Layers: " << n.input_layer_size << ' ';
-        for(int i = 0; i < n.hidden_layer_count; i++)
-            fs << n.hidden_layer_size << ' ';
-        fs << n.output_layer_size;
-        // Bias and weight values
-        fs << "\nBias': ";
-        for(int i = 0; i < n.bias.size(); i++){
-            fs << n.bias[i] << ' ';
-        }
+        // Display weights and bias values
         fs << "\nWeights: ";
-        for(int i = 0; i < n.weights.size(); i++){
-            fs << n.weights[i] << ' ';
+        for( size_t i = 0; i < nn.weights.totalSize(); ++i ) {
+            fs << nn.weights.data()[i] << ' ';
+        }
+        fs << "\nBias': ";
+        for( size_t i = 0; i < nn.bias.totalSize(); ++i ) {
+            fs << nn.bias.data()[i] << ' ';
         }
 
         return fs;
-    }
-
-    // INTERNAL FUNCTIONS
-    void NeuralNetwork::recalculate(){
-        const int weight_count = input_layer_size*hidden_layer_size  +  hidden_layer_size*hidden_layer_size*(hidden_layer_count-1)  +  output_layer_size*hidden_layer_size;
-        const int bias_count = hidden_layer_size*hidden_layer_count + output_layer_size;
-
-        // Initialize all weights at zero
-        weights = jai::Vector(weight_count, 0);
-        bias = jai::Vector(bias_count, 0);
     }
 }
 
