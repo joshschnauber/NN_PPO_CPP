@@ -1129,10 +1129,8 @@ namespace jai {
 
             // Calculate m_hat from momentums to shrink effect of momentum over time
             const RaggedTensor<3> m_hat = policy_momentums / (1 - std::pow(m_decay, policy_updates + 1));
-            RaggedTensor<3> sqr_m_hat = policy_sqr_momentums / (1 - std::pow(sqr_m_decay, policy_updates + 1));
-            sqr_m_hat.transform([]( float val ) {
-                return std::sqrt(val) + NN_EPSILON;
-            });
+            RaggedTensor<3> sqr_m_hat = (policy_sqr_momentums / (1 - std::pow(sqr_m_decay, policy_updates + 1)))
+                                        .transform([]( float val ) { return std::sqrt(val) + NN_EPSILON; });
 
             // Update gradients
             policy_gradients = m_hat / sqr_m_hat;
@@ -1387,7 +1385,7 @@ namespace jai {
         bias_gradients += (2 * regularization_strength) * this->bias;
     }
 
-    void NeuralNetwork::randomInit( const float min, const float max ){
+    void NeuralNetwork::randomInit( const float min, const float max ) {
         std::random_device rd;
         std::mt19937 rd_gen(rd());
         std::uniform_real_distribution dst(0.0, 1.0);
@@ -1396,7 +1394,7 @@ namespace jai {
         const float range = max - min;
         for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
             this->weights[i].transform(
-                [min, range, &dst, &rd_gen](const size_t[2], const float) {
+                [min, range, &dst, &rd_gen]() {
                     return (dst(rd_gen) * range) + min;
                 }
             );
@@ -1404,7 +1402,7 @@ namespace jai {
         // Set bias' to 0
         this->bias.fill(0);
     }
-    void NeuralNetwork::kaimingInit(){
+    void NeuralNetwork::kaimingInit() {
         std::random_device rd;
         std::mt19937 rd_gen(rd());
         std::normal_distribution dst(0.0f, 1.0f);
@@ -1413,7 +1411,7 @@ namespace jai {
         for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
             const float bound = std::sqrt(2.0f / this->getLayerSize(i));
             this->weights[i].transform(
-                [bound, &dst, &rd_gen](const size_t[2], const float) {
+                [bound, &dst, &rd_gen]() {
                     return dst(rd_gen) * bound;
                 }
             );
@@ -1431,7 +1429,7 @@ namespace jai {
             const size_t layer_size_sum = this->getLayerSize(i) + this->getLayerSize(i + 1);
             const float bound = 2.44948 / std::sqrt(layer_size_sum);
             this->weights[i].transform(
-                [bound, &dst, &rd_gen](const size_t[2], const float) {
+                [bound, &dst, &rd_gen]() {
                     return dst(rd_gen) * bound; 
                 }
             );

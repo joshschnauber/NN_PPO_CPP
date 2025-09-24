@@ -3,7 +3,7 @@
 /*
  * Test of different member functions of the tensor classes in Tensor.hpp.
  *
- * g++ -g -Wextra -Wall tensor_test.cpp -o tensor_test.exe
+ * g++ -std=c++20 -g -Wextra -Wall tensor_test.cpp -o tensor_test.exe
  * tensor_test.exe
  */
 
@@ -507,11 +507,14 @@ void test_base_tensor() {
 
     UNIT_TEST("isSameSize()")
 
-        const jai::Tensor<3> t3_23_1 = { { {2301, 2302}, {2303, 2304}, {2305, 2306} }, { {2307, 2308}, {2309, 2310}, {2311, 2312} } };
-        const jai::Tensor<3> t3_23_2 = { { {2313, 2314}, {2315, 2316}, {2317, 2318} }, { {2319, 2320}, {2321, 2322}, {2323, 2324} } };
+        const jai::Tensor<3> t3_23_1 = { { {2301, 2302}, {2303, 2304}, {2305, 2306} }, 
+                                         { {2307, 2308}, {2309, 2310}, {2311, 2312} } };
+        const jai::Tensor<3> t3_23_2 = { { {2313, 2314}, {2315, 2316}, {2317, 2318} }, 
+                                         { {2319, 2320}, {2321, 2322}, {2323, 2324} } };
         const jai::Tensor<1> t1_23_1 = { 2325, 2326, 2327 };
         const jai::Tensor<1> t1_23_2 = { 2328, 2329, 2330 };
-        const jai::Tensor<3> t3_23_3 = { { {2331, 2332}, {2333, 2334} }, { {2337, 2338}, {2339, 2340} } };
+        const jai::Tensor<3> t3_23_3 = { { {2331, 2332}, {2333, 2334} }, 
+                                         { {2337, 2338}, {2339, 2340} } };
         const jai::Tensor<1> t1_23_3 = { 2343, 2344, 2345, 2346 };
 
         test_true( t3_23_1.isSameSize(t3_23_2) );
@@ -552,46 +555,104 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    UNIT_TEST("RANK=1 transformWithIndexes()")
+    UNIT_TEST("transform() without indexes")
 
-        jai::Tensor<1> t1_26 = { 261, 262, 263, 264, 265 };
+        jai::Tensor<1> t1_1 = {1, 2, 3};
+        jai::Tensor<2> t2_1 = {{1, 2,}, {3, 4}};
+        t1_1.transform([](){
+            return 10;
+        });
+        t2_1.transform([](){
+            return 5;
+        });
 
-        t1_26.transformWithIndexes(
-            [&total_tests, &total_failed_tests, &t1_26](const size_t index, const float value) {
-                test_equals(t1_26[index], value);
+        test_equals( t1_1[0], 10 );
+        test_equals( t1_1[1], 10 );
+        test_equals( t1_1[2], 10 );
+        test_equals( t2_1[0][0], 5 );
+        test_equals( t2_1[0][1], 5 );
+        test_equals( t2_1[1][0], 5 );
+        test_equals( t2_1[1][1], 5 );
 
-                return value * 2;
-            }
-        );
+        jai::Tensor<1> t1_2 = {1, 2, 3, 4, 5};
+        jai::Tensor<2> t2_2 = {{1, 2}, {3, 4}};
+        t1_2.transform([]( float val ) {
+            return val * val;
+        });
+        t2_2.transform([]( float val ) {
+            return 2 * val;
+        });
 
-        test_equals( t1_26[0], 522);
-        test_equals( t1_26[1], 524);
-        test_equals( t1_26[2], 526);
-        test_equals( t1_26[3], 528);
-        test_equals( t1_26[4], 530);
+        test_equals( t1_2[0], 1 );
+        test_equals( t1_2[1], 4 );
+        test_equals( t1_2[2], 9 );
+        test_equals( t1_2[3], 16 );
+        test_equals( t1_2[4], 25 );
+        test_equals( t2_2[0][0], 2 );
+        test_equals( t2_2[0][1], 4 );
+        test_equals( t2_2[1][0], 6 );
+        test_equals( t2_2[1][1], 8 );
 
     END_UNIT_TEST
 
 
-    UNIT_TEST("RANK=2 transformWithIndexes()")
+    UNIT_TEST("transform() with indexes")
 
-        jai::Tensor<2> t2_27 = {{271, 272, 273}, {274, 275, 276}};
+        jai::Tensor<1> t1_1 = {10, 20, 30, 40};
+        jai::Tensor<2> t2_1 = {{11, 12,}, {13, 14}};
+        t1_1.transform([]( size_t index ){
+            return 2 * index;
+        });
+        t2_1.transform([]( size_t indexes[2] ){
+            return indexes[0] + indexes[1];
+        });
 
-        t2_27.transformWithIndexes(
-            [&total_tests, &total_failed_tests, &t2_27](const size_t indexes[2], const float value) {
-                size_t _indexes[2] = {indexes[0], indexes[1]}; // For some reason `indexes` cannot be used directly
-                test_equals(t2_27[_indexes], value);
+        test_equals( t1_1[0], 0 );
+        test_equals( t1_1[1], 2 );
+        test_equals( t1_1[2], 4 );
+        test_equals( t1_1[3], 6 );
+        test_equals( t2_1[0][0], 0 );
+        test_equals( t2_1[0][1], 1 );
+        test_equals( t2_1[1][0], 1 );
+        test_equals( t2_1[1][1], 2 );
 
-                return value * 2;
-            }
-        );
+        jai::Tensor<1> t1_2 = {10, 10, 10};
+        jai::Tensor<2> t2_2 = {{100, 200, 300}, {400, 500, 600}};
+        t1_2.transform([]( float val, size_t index ) {
+            return val + index;
+        });
+        t2_2.transform([]( float val, size_t indexes[2] ) {
+            return val + indexes[0] + indexes[1];
+        });
 
-        test_equals( (t2_27[{0, 0}]), 542);
-        test_equals( (t2_27[{0, 1}]), 544);
-        test_equals( (t2_27[{0, 2}]), 546);
-        test_equals( (t2_27[{1, 0}]), 548);
-        test_equals( (t2_27[{1, 1}]), 550);
-        test_equals( (t2_27[{1, 2}]), 552);
+        test_equals( t1_2[0], 10 );
+        test_equals( t1_2[1], 11 );
+        test_equals( t1_2[2], 12 );
+        test_equals( t2_2[0][0], 100 );
+        test_equals( t2_2[0][1], 201 );
+        test_equals( t2_2[0][2], 302 );
+        test_equals( t2_2[1][0], 401 );
+        test_equals( t2_2[1][1], 502 );
+        test_equals( t2_2[1][2], 603 );
+
+        jai::Tensor<1> t1_3 = {0, 0, 0};
+        jai::Tensor<2> t2_3 = {{1, 2}, {3, 4}, {5, 6}};
+        t1_3.transform([]( size_t index, float val ) {
+            return val + index;
+        });
+        t2_3.transform([]( size_t indexes[2], float val ) {
+            return val + indexes[0] + indexes[1];
+        });
+
+        test_equals( t1_3[0], 0 );
+        test_equals( t1_3[1], 1 );
+        test_equals( t1_3[2], 2 );
+        test_equals( t2_3[0][0], 1 );
+        test_equals( t2_3[0][1], 3 );
+        test_equals( t2_3[1][0], 4 );
+        test_equals( t2_3[1][1], 6 );
+        test_equals( t2_3[2][0], 7 );
+        test_equals( t2_3[2][1], 9 );
 
     END_UNIT_TEST
 
@@ -633,7 +694,7 @@ void test_ragged_tensor() {
 
     UNIT_TEST("RANK=2 constructor")
 
-        //jai::RaggedTensor<2> rt2_1(3, {2, 3, 4});
+        //jai::RaggedTensor<2> rt2_1(3, {});
         //jai::RaggedTensor<2> rt2_2(1, {2});
 
     END_UNIT_TEST

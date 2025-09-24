@@ -33,9 +33,9 @@
             std::cerr << TFS                                            \
                       << total_failed_unit_tests << " out of "          \
                       << total_unit_tests << " unit tests failed"       \
-                      << TFE << "\n";                                   \
+                      << TFE << "\n\n";                                 \
         } else {                                                        \
-            std::cout << TSS << "All tests succeeded" << TSE << "\n";   \
+            std::cout << TSS << "All tests succeeded" << TSE << "\n\n"; \
         }                                                               \
     }
 
