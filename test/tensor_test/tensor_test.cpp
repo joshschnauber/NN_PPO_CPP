@@ -692,10 +692,23 @@ void test_ragged_tensor() {
     START_TESTING("Ragged Tensor")
 
 
-    UNIT_TEST("RANK=2 constructor")
+    UNIT_TEST("RANK=2 constructor and assignment")
 
-        //jai::RaggedTensor<2> rt2_1(3, {});
-        //jai::RaggedTensor<2> rt2_2(1, {2});
+        size_t dims[4] = {3, 4, 5, 2};
+        jai::RaggedTensor<2> rt2_1(4, dims);
+        jai::RaggedTensor<2> rt2_2({2, 2});
+        jai::RaggedTensor<2> rt2_3({104, 37});
+
+    END_UNIT_TEST
+
+
+    UNIT_TEST("RANK=3 constructor and assignment")
+
+        size_t dims[4][3 - 1] = {{2, 3}, {3, 4}, {5, 6}, {2, 7}};
+        jai::RaggedTensor<3> rt2_1(3, dims);
+        
+        jai::RaggedTensor<3> rt3_1( {{2, 3}, {10, 2}} );
+        jai::RaggedTensor<3> rt3_2( {{203, 37}, {302, 26}, {455, 89}} );
 
     END_UNIT_TEST
 

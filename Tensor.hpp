@@ -26,6 +26,12 @@
  *   Maybe switch BaseTensor& to generic TENSOR_TYPE in function calls to allow more 
  *   efficiently having different implementions for getting data, rather than virtual
  *   functions
+ * 
+ * - Somehow connect Tensor and VTensor with RaggedTensor, so their overlapping 
+ *   functionality can be reused, and to get rid of the need for duplicated code.
+ * 
+ * - Make the size of Tensors completely unchangeable by only making the assignment
+ *   operator just copy over values, and not change the size of the Tensor.
  */
  
 #ifndef TENSOR_HPP
@@ -110,14 +116,12 @@ namespace jai {
         /**
          * Defined for RANK>1 Tensors, returns the element at the given indexes.
          */
-        const float& operator [] ( const size_t (&indexes)[RANK] ) const
-        requires (RANK > 1);
+        const float& operator [] ( const size_t (&indexes)[RANK] ) const;
         /**
          * Defined for RANK>1 Tensors, this returns a mutable reference to the element
          * at the given `indexes`.
          */
-        float& operator [] ( const size_t (&indexes)[RANK] )
-        requires (RANK > 1);
+        float& operator [] ( const size_t (&indexes)[RANK] );
         /**
          * Defined for RANK>1 Tensors, this returns an immutable View Tensor with rank
          * RANK-1, at the given index in the first dimension.
@@ -407,8 +411,7 @@ namespace jai {
         /**
          * Defined for RANK>1 Tensors, this returns the size of the given dimension.
          */
-        size_t size( size_t dimension ) const
-        requires (RANK > 1);
+        size_t size( size_t dimension ) const;
 
         /**
          * Prints out the Tensor as a string.
@@ -473,6 +476,7 @@ namespace jai {
          * Defined for RANK=1 Tensors, constructs a Tensor with the given dimension.
          * Throws an error if `dim` is equal to 0.
          */
+        explicit 
         Tensor( size_t dim )
         requires (RANK == 1);
         /**
@@ -488,12 +492,13 @@ namespace jai {
          * to `dim-1`.
          * Throws an error if `dim` is equal to 0.
          */
-        Tensor( size_t dim, const float* fill )
+        Tensor( size_t dim, const float fill[] )
         requires (RANK == 1);
         /**
          * Constructs a Tensor with the given dimensions.
          * Throws an error if any value in `dims` is equal to 0.
          */
+        explicit 
         Tensor( const size_t (&dims)[RANK] );
         /**
          * Constructs a Tensor with the given dimensions and with all values set to
@@ -613,13 +618,14 @@ namespace jai {
          * Constructs a RaggedTensor containing inner Tensors with the set of dimensions
          * specified in `inner_tensor_dims`.
          */
-        RaggedTensor( const size_t dim1_size, const size_t (*inner_tensor_dims)[RANK-1] );
+        RaggedTensor( const size_t dim1_size, const size_t inner_tensor_dims[][RANK-1] );
         /**
          * Defined for RANK=2 RaggedTensors, constructs a RaggedTensor containing inner
          * Tensors with the dimensions specified in `inner_tensor_dims`.
          * Identical to the constructor using pointers, but does not require a separate
          * dimension 1 size field.
          */
+        explicit 
         RaggedTensor( std::initializer_list<size_t> inner_tensor_dims )
         requires (RANK == 2);
         /**
@@ -628,6 +634,7 @@ namespace jai {
          * Identical to the constructor using pointers, but does not require a separate
          * dimension 1 size field.
          */
+        explicit 
         RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims );
         /**
          * Constructs a RaggedTensor containing the tensors specified in `elements`.
@@ -929,7 +936,7 @@ namespace jai {
         }
     }
 
-    
+
     /* BaseTensor Implementation */
 
     template<size_t RANK>
@@ -946,8 +953,7 @@ namespace jai {
         return this->data_[index];
     }
     template<size_t RANK>
-    const float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const 
-    requires (RANK > 1) {
+    const float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
         size_t index = 0;
         size_t inner_tensor_size = 1;
         for( size_t i = 0; i < RANK; ++i ) {
@@ -957,8 +963,7 @@ namespace jai {
         return this->data_[index];
     }
     template<size_t RANK>
-    float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) 
-    requires (RANK > 1) {
+    float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
         size_t index = 0;
         size_t inner_tensor_size = 1;
         for( size_t i = 0; i < RANK; ++i ) {
@@ -1499,8 +1504,7 @@ namespace jai {
         return this->total_size;
     }
     template<size_t RANK>
-    size_t BaseTensor<RANK>::size( const size_t dimension ) const 
-    requires (RANK > 1) {
+    size_t BaseTensor<RANK>::size( const size_t dimension ) const {
         return this->dimensions[dimension];
     }
 
@@ -1522,60 +1526,62 @@ namespace jai {
 
     /* Implementation Helper Functions For Handling Recursive std::initializer_lists */
 
-    template<size_t RANK>
-    size_t countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] ) {
-        dims[0] = elements.size();
+    namespace {
+        template<size_t RANK>
+        size_t countInitializerElements( const InitializerElements<RANK>& elements, size_t dims[RANK] ) {
+            dims[0] = elements.size();
 
-        // RANK=1 case
-        if constexpr( RANK == 1 ) {
-            return elements.size();
-        }
+            // RANK=1 case
+            if constexpr( RANK == 1 ) {
+                return elements.size();
+            }
 
-        // RANK>1 case
-        else {
-            const size_t inner_size = countInitializerElements<RANK-1>(*elements.begin(), dims + 1);
-            return elements.size() * inner_size;
+            // RANK>1 case
+            else {
+                const size_t inner_size = countInitializerElements<RANK-1>(*elements.begin(), dims + 1);
+                return elements.size() * inner_size;
+            }
         }
-    }
-    template<size_t RANK>
-    bool checkInitializerElements( const InitializerElements<RANK>& elements, const size_t dims[RANK] ) {
-        if( elements.size() != dims[0] ) {
-            return false;
-        }
+        template<size_t RANK>
+        bool checkInitializerElements( const InitializerElements<RANK>& elements, const size_t dims[RANK] ) {
+            if( elements.size() != dims[0] ) {
+                return false;
+            }
 
-        // RANK=1 case
-        if constexpr( RANK == 1 ) {
-            return true;
-        }
+            // RANK=1 case
+            if constexpr( RANK == 1 ) {
+                return true;
+            }
 
-        // RANK>1 case
-        else {
-            for( const auto& inner_elements : elements ) {
-                if( !checkInitializerElements<RANK-1>(inner_elements, dims + 1) ) {
-                    return false;
+            // RANK>1 case
+            else {
+                for( const auto& inner_elements : elements ) {
+                    if( !checkInitializerElements<RANK-1>(inner_elements, dims + 1) ) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        template<size_t RANK>
+        void flattenInitializerElements( const InitializerElements<RANK>& elements, float*& data ) {
+            // RANK=1 case
+            if constexpr( RANK == 1 ) {
+                for( const float element : elements ) {
+                    *data = element;
+                    ++data;
                 }
             }
-            return true;
-        }
-    }
-    template<size_t RANK>
-    void flattenInitializerElements( const InitializerElements<RANK>& elements, float*& data ) {
-        // RANK=1 case
-        if constexpr( RANK == 1 ) {
-            for( const float element : elements ) {
-                *data = element;
-                ++data;
-            }
-        }
 
-        // RANK>1 case
-        else {
-            for( const auto& inner_elements : elements ) {
-                flattenInitializerElements<RANK-1>(inner_elements, data);
+            // RANK>1 case
+            else {
+                for( const auto& inner_elements : elements ) {
+                    flattenInitializerElements<RANK-1>(inner_elements, data);
+                }
             }
         }
     }
-
+    
 
     /* Tensor Implementation */
 
@@ -1611,7 +1617,7 @@ namespace jai {
         fillValues(fill, this->data_, this->total_size);
     }
     template<size_t RANK>
-    Tensor<RANK>::Tensor( size_t dim, const float* fill ) 
+    Tensor<RANK>::Tensor( size_t dim, const float fill[] )
     requires (RANK == 1) {
         if( dim == 0 ) {
             throw std::invalid_argument("The dimension size is less than 1.");
@@ -1876,7 +1882,7 @@ namespace jai {
         this->inner_tensors = nullptr;
     }
     template<size_t RANK>
-    RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t* inner_tensor_dims ) 
+    RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t inner_tensor_dims[] ) 
     requires (RANK == 2) {
         // Allocate space for array of inner VTensors
         this->inner_tensors = new VTensor<1>[dim1_size];
@@ -1906,7 +1912,7 @@ namespace jai {
         }
     }
     template<size_t RANK>
-    RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t (*inner_tensor_dims)[RANK-1] ) {
+    RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t inner_tensor_dims[][RANK-1] ) {
         // Allocate space for array of inner VTensors
         this->inner_tensors = new VTensor<RANK-1>[dim1_size];
         // Copy over dimension sizes and count the total size
