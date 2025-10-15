@@ -26,12 +26,27 @@
  *   Maybe switch BaseTensor& to generic TENSOR_TYPE in function calls to allow more 
  *   efficiently having different implementions for getting data, rather than virtual
  *   functions
+ *   Ideally any 'shape changing' operation that doesn't change the values in the
+ *   Tensor should return a VTensor (i.e. .transpose()), but this may not be feasible.
  * 
  * - Somehow connect Tensor and VTensor with RaggedTensor, so their overlapping 
  *   functionality can be reused, and to get rid of the need for duplicated code.
  * 
  * - Make the size of Tensors completely unchangeable by only making the assignment
- *   operator just copy over values, and not change the size of the Tensor.
+ *   operator just copy over values, and not change the size of the Tensor. Need to have
+ *   some way of making handling Tensors easier then, because allowing resizing on 
+ *   assignment is convienient.
+ *   This will also let us remove the default constructor (and maybe make .total_size 
+ *   and some other size variables const?).
+ * 
+ * - Add .collapsed() function that collapses Tensors with rank RANK into Tensor with rank
+ *   RANK-1, when RANK>1.
+ * - Add iterator to allow enhanced iterate to iterate over rows of rank RANK-1, or just
+ *   a float if RANK=1
+ * - Add a function to fill the Tensor with random values
+ * 
+ * - Add .copy() functions that returns a new Tensor, and make more non size changing
+ *   mutators alter the Tensor instead of creating a new one.
  */
  
 #ifndef TENSOR_HPP
@@ -333,6 +348,12 @@ namespace jai {
         Tensor<1> cross( const BaseTensor<1>& other ) const
         requires (RANK == 1);
 
+        /**
+         * Finds the average of the elements in this Vector and returns the result.
+         */
+        float average() const
+        requires (RANK == 1);
+
         /* Matrix operations */
         public:
 
@@ -542,16 +563,19 @@ namespace jai {
         /**
          * Assignment operator.
          * Ensures that memory is freed when existing object is overwritten.
+         * Any VTensors referring to `this` Tensor will be invalidated.
          */
         Tensor<RANK>& operator = ( const Tensor<RANK>& other );
         /**
          * Assignment operator from BaseTensor.
          * Ensures that memory is freed when existing object is overwritten.
+         * Any VTensors referring to `this` Tensor will be invalidated.
          */
         Tensor<RANK>& operator = ( const BaseTensor<RANK>& other );
         /**
          * Move assignment operator.
          * Ensures that memory is freed when existing object is overwritten.
+         * Any VTensors referring to `this` Tensor will be invalidated.
          */
         Tensor<RANK>& operator = ( Tensor<RANK>&& other );
     
@@ -1348,6 +1372,16 @@ namespace jai {
         result[1] = this[2] * other[0] - this[0] * other[2];
         result[2] = this[0] * other[1] - this[1] * other[0];
         return result;
+    }
+
+    template<size_t RANK>
+    float BaseTensor<RANK>::average() const
+    requires (RANK == 1) {
+        float sum = 0;
+        for( size_t i = 0; i < this->total_size; ++i ) {
+            sum += this->data_[i];
+        }
+        return sum / this->total_size;
     }
 
     template<size_t RANK>

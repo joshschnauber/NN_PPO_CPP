@@ -678,8 +678,6 @@ void test_base_tensor() {
     /* TODO: Test cases for other Vector and Matrix specific operations */
 
     
-
-
     END_TESTING
 }
 
@@ -697,7 +695,7 @@ void test_ragged_tensor() {
         size_t dims[4] = {3, 4, 5, 2};
         jai::RaggedTensor<2> rt2_1(4, dims);
         jai::RaggedTensor<2> rt2_2({2, 2});
-        jai::RaggedTensor<2> rt2_3({104, 37});
+        jai::RaggedTensor<2> rt2_3({3, 2});
 
     END_UNIT_TEST
 
@@ -713,6 +711,9 @@ void test_ragged_tensor() {
     END_UNIT_TEST
 
 
+    UNIT_TEST("")
+
+    
     /* TODO: Tests for RaggedTensor member functions */
 
     

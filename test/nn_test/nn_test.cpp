@@ -209,6 +209,45 @@ void test_neural_network() {
             std::cout << y_p << "\n";
         }
 
+    END_UNIT_TEST
+
+
+    UNIT_TEST("Larger Number Training With DataStream")
+
+        // Create data stream to retrieve two random numbers, and
+        // whether or not one is larger than the other
+        const long DATA_SEED = 100;
+        const size_t MAX_DATAPOINTS = 10000;
+        class RandomNumberDataStream : public jai::SimpleDataStream {
+            bool retrieveDatapoint( 
+                jai::BaseVector& training_input,
+                jai::BaseVector& training_expected_output
+            ) override {
+                training_input[0] = dst( rd_gen );
+                training_input[1] = dst( rd_gen );
+
+                if( training_input[0] < training_input[1] ) {
+                    training_expected_output[0] = 0;
+                } else {
+                    training_expected_output[0] = 1;
+                }
+
+                return (++datapoints_retrieved) < MAX_DATAPOINTS;
+            }
+            
+            size_t inputSize() const override {
+                return 2;
+            }
+            size_t outputSize() const override {
+                return 1;
+            }
+
+            private:
+            std::mt19937 rd_gen = std::mt19937(DATA_SEED);
+            std::uniform_real_distribution<float> dst = std::uniform_real_distribution(-100.0f, 100.0f);
+            size_t datapoints_retrieved = 0;
+        };
+
 
     END_UNIT_TEST
 

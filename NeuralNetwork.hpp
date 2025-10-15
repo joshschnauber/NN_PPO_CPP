@@ -397,7 +397,7 @@ namespace jai {
          * Gets an input to propagate through a neural network and places it into
          * `training_input`, and gets the expected output for that input and places it
          * into `training_expected_output`.
-         * Returns true if all data has been retrieved, and false otherwise.
+         * Returns false if there is no more data to retrieve, and true otherwise.
          */
         virtual bool retrieveDatapoint( 
             BaseVector& training_input,
@@ -406,11 +406,11 @@ namespace jai {
         /**
          * Returns the size of the datapoint training input
          */
-        virtual size_t inputSize() = 0;
+        virtual size_t inputSize() const = 0;
         /**
          * Returns the size of the datapoint training output
          */
-        virtual size_t outputSize() = 0;
+        virtual size_t outputSize() const = 0;
     };
 
     /**
@@ -549,8 +549,8 @@ namespace jai {
         void backpropagate(
             const BaseMatrix& inputs, 
             const BaseMatrix& loss_D,
-            RaggedTensor<3>& weight_gradients,
-            RaggedMatrix& bias_gradients
+            RaggedTensor<4>& weight_gradients,
+            RaggedTensor<3>& bias_gradients
         ) const;
         /**
          * Backpropagates through the network using the precomputed `propagated_vals`
@@ -576,13 +576,20 @@ namespace jai {
         ) const;
 
         /**
-         * Applies L2 regularization to `weight_gradients` and `bias_gradients` using the
-         * `regularization_strength` and `this` NeuralNetwork's current weights and bias'.
+         * 
          */
-        void applyRegularization( 
-            RaggedTensor<3>& weight_gradients, 
-            RaggedMatrix& bias_gradients, 
-            const float regularization_strength
+        bool test(
+            const BaseVector& inputs,
+            const BaseVector& expected_outputs,
+            const std::function<Vector> output_cap_function
+        ) const;
+        /**
+         * 
+         */
+        Vector test(
+            const BaseMatrix& inputs,
+            const BaseMatrix& expected_outputs,
+            const std::function<Vector> output_cap_function
         ) const;
 
         /* Mutators */
@@ -634,6 +641,19 @@ namespace jai {
             const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
             const Hyperparameters& training_hyperparameters = Hyperparameters()
         );
+
+        /** Helpers */
+        public:
+
+        /**
+         * Applies L2 regularization to `weight_gradients` and `bias_gradients` using the
+         * `regularization_strength` and `this` NeuralNetwork's current weights and bias'.
+         */
+        void applyRegularization( 
+            RaggedTensor<3>& weight_gradients, 
+            RaggedMatrix& bias_gradients, 
+            const float regularization_strength
+        ) const;
 
         /* Getters */
         public:
