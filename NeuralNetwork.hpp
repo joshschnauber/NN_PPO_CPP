@@ -1164,6 +1164,7 @@ namespace jai {
         this->input_layer_size = 0;
         this->output_layer_size = 0;
     }
+    
     NeuralNetwork::NeuralNetwork(   
         const size_t input_layer_size, 
         const size_t output_layer_size, 
@@ -1182,6 +1183,7 @@ namespace jai {
         hidden_activation,
         output_layer_activation
     ) { }
+    
     NeuralNetwork::NeuralNetwork(
         const size_t layer_count,
         const size_t layer_sizes[],
@@ -1230,6 +1232,7 @@ namespace jai {
             output_layer_activation.clone()
         );
     }
+    
     NeuralNetwork::NeuralNetwork(
         const RaggedTensor<3>& weights,
         const RaggedMatrix& bias,
@@ -1298,6 +1301,7 @@ namespace jai {
 
         return y;
     }
+    
     Matrix NeuralNetwork::propagate( const BaseMatrix& inputs ) const  {
         Matrix outputs({inputs.size(0), this->output_layer_size});
         
@@ -1309,6 +1313,7 @@ namespace jai {
 
         return outputs;
     }
+    
     VVector NeuralNetwork::propagate(
         const BaseVector& inputs,
         RaggedTensor<3>& propagated_vals
@@ -1356,6 +1361,7 @@ namespace jai {
             bias_gradients
         );
     }
+    
     void NeuralNetwork::backpropagate(
         const RaggedTensor<3>& propagated_vals, 
         const BaseVector& loss_D, 
@@ -1422,6 +1428,7 @@ namespace jai {
         // Set bias' to 0
         this->bias.fill(0);
     }
+    
     void NeuralNetwork::kaimingInit() {
         std::random_device rd;
         std::mt19937 rd_gen(rd());
@@ -1439,6 +1446,7 @@ namespace jai {
         // Set bias' to 0
         this->bias.fill(0);
     }
+    
     void NeuralNetwork::xavierInit() {
         std::random_device rd;
         std::mt19937 rd_gen(rd());
@@ -1593,6 +1601,7 @@ namespace jai {
 
         return Vector(losses.size(), losses.data());
     }
+    
     // TODO: Implement
     Vector NeuralNetwork::train(
         SimpleDataStream& training_data_stream,
@@ -1616,26 +1625,33 @@ namespace jai {
         throw "NOT IMPLEMENTED";
     }
 
+    
     size_t NeuralNetwork::getInputLayerSize() const {
         return this->input_layer_size;
     }
+    
     size_t NeuralNetwork::getOutputLayerSize() const {
         return this->output_layer_size;
     }
+    
     size_t NeuralNetwork::getLayerSize( const size_t layer_index ) const {
         return (layer_index == 0) ?
                 this->input_layer_size :
                 this->bias[layer_index - 1].size();
     }
+    
     size_t NeuralNetwork::getLayerCount() const {
         return 1 + this->bias.dim1Size();
     }
+    
     const RaggedTensor<3>& NeuralNetwork::getWeights() const {
         return this->weights;
     }
+    
     const RaggedMatrix& NeuralNetwork::getBias() const {
         return this->bias;
     }
+    
     RaggedTensor<3> NeuralNetwork::getEmptyPropagationTensor() const {
         const size_t layer_count = this->getLayerCount();
         size_t inner_matrix_sizes[layer_count][2];
