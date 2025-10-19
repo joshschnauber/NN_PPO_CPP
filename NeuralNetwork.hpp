@@ -1,7 +1,6 @@
 /* NeuralNetwork.hpp */
 
-#ifndef NEURAL_NETWORK_HPP
-#define NEURAL_NETWORK_HPP
+
 
 #include "Tensor.hpp"
 #include <cmath>
@@ -11,6 +10,13 @@
 #include <iostream>
 #include <algorithm>
 #include <random>
+
+
+
+#ifndef NEURAL_NETWORK_HPP
+#define NEURAL_NETWORK_HPP
+
+
 
 const float NN_EPSILON = 1e-7f;
 const float NN_INFINITY = 1.0f/0.0f;
@@ -43,7 +49,7 @@ namespace jai {
          * between `min` and `max`, with the given `step`.
          * Returns true if it is, and false if not.
          */
-        bool verify( const float min = -10.0f, const float max = 10.0f, const float step = 0.5f ) const;
+        bool verify( const float min = -2.0f, const float max = 2.0f, const float step = 0.25f ) const;
     };
     /**
      * Linear activation
@@ -167,6 +173,7 @@ namespace jai {
         private:
         float power;
     };
+
 
     /**
      * This represents an activation to be applied to an entire layer in a neural network.
@@ -311,6 +318,7 @@ namespace jai {
         std::vector<int> softmax_sizes;
     };
 
+
     /**
      * This represents a loss function to be applied to the output of a neural network,
      * using the expected output to calculate the loss.
@@ -386,6 +394,7 @@ namespace jai {
         bool isValidLayerSize( size_t layer_size ) const override;
     };
 
+
     /**
      * Abstract class for retreiving data for training a neural network over time.
      * Called 'Simple' because it retrieves only an input and the expected output,
@@ -413,6 +422,7 @@ namespace jai {
         virtual size_t outputSize() const = 0;
     };
 
+
     /**
      * Class...
      */
@@ -424,6 +434,7 @@ namespace jai {
          * Struct representing the hyperparameters needed for training a neural network
          */
         struct Hyperparameters {
+            Hyperparameters() {}
             /**
              * The maximum error before training will stop.
              */
@@ -472,6 +483,15 @@ namespace jai {
             const size_t output_layer_size, 
             const size_t hidden_layer_count,
             const size_t hidden_layer_size,
+            const Activation& hidden_activation = ReLUActivation(), 
+            const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation())
+        );
+        /**
+         * Constructs a NeuralNetwork with the given `layer_sizes`, as well as the
+         * activations, with no weights or bias' set.
+         */
+        NeuralNetwork(
+            const std::initializer_list<size_t> layer_sizes, 
             const Activation& hidden_activation = ReLUActivation(), 
             const LayerActivation& output_layer_activation = UniformLayerActivation(SigmoidActivation())
         );
@@ -697,7 +717,7 @@ namespace jai {
         friend std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn );
 
         /* NeuralNetwork member variables */
-        private:
+        protected:
 
         /**
          * 
@@ -730,33 +750,38 @@ namespace jai {
 
     bool Activation::verify( const float min, const float max, const float step ) const {
         // The distance from x used when estimating the slope between x and another point
-        const float poll_distance = 1e-2;
+        const double poll_distance = 1e-3;
         // The tolerance for how far the predicted and expected values can be
-        const float tol = 1e-3;
+        const double tol = 5e-2;
 
-        float x = min;
+        double x = min - step;
         while( x <= max ) {
+            x += step;
+
             // Get actual values from functions
-            const float y = this->fn(x);
-            const float y_D = this->fn_D(x);
+            const double y = this->fn(x);
+            const double y_D = this->fn_D(x);
 
             // Check the values of y around x
-            const float x_n = x - poll_distance;
-            const float x_p = x + poll_distance;
-            const float y_n = this->fn(x_n);
-            const float y_p = this->fn(x_p);
+            const double x_n = x - poll_distance;
+            const double x_p = x + poll_distance;
+            const double y_n = this->fn(x_n);
+            const double y_p = this->fn(x_p);
 
             // Calculate average slope
-            const float predicted_y_D_n = (y - y_n) / (poll_distance);
-            const float predicted_y_D_p = (y_p - y) / (poll_distance);
-            const float predicted_y_D = (predicted_y_D_n + predicted_y_D_p) / 2.0f;
-
-            // Return false if the predicted and actual values are too far
-            if( predicted_y_D - tol > y_D || predicted_y_D + tol < y_D) {
-                return false;
+            const double predicted_y_D_n = (y - y_n) / (poll_distance);
+            const double predicted_y_D_p = (y_p - y) / (poll_distance);
+            const double predicted_y_D = (predicted_y_D_n + predicted_y_D_p) / 2.0;
+            // If the predicted slope between from the left and right side is too different,
+            // it might be non differentiable at that point, so just skip it
+            if( std::abs(predicted_y_D_n - predicted_y_D_p) > 2 * tol ) {
+                continue;
             }
 
-            x += step;
+            // Return false if the predicted and actual values are too far
+            if( predicted_y_D - tol > y_D || predicted_y_D + tol < y_D ) {
+                return false;
+            }
         }
         
         return true;
@@ -765,11 +790,11 @@ namespace jai {
     float LinearActivation::fn( const float x ) const {
         return x;
     }
-    float LinearActivation::fn_D( const float x ) const {
+    float LinearActivation::fn_D( const float ) const {
         return 1.0f;
     }
     std::unique_ptr<Activation> LinearActivation::clone() const {
-        return std::make_unique<Activation>(new LinearActivation(*this));
+        return std::make_unique<LinearActivation>(*this);
     }
 
     float ReLUActivation::fn( const float x ) const {
@@ -779,7 +804,7 @@ namespace jai {
         return (float) !std::signbit(x);
     }
     std::unique_ptr<Activation> ReLUActivation::clone() const {
-        return std::make_unique<Activation>(new ReLUActivation(*this));
+        return std::make_unique<ReLUActivation>(*this);
     }
 
     float ELUActivation::fn( const float x ) const {
@@ -789,7 +814,7 @@ namespace jai {
         return ( x >=0 ) ?  1.0f : std::exp(x);
     }
     std::unique_ptr<Activation> ELUActivation::clone() const {
-        return std::make_unique<Activation>(new ELUActivation(*this));
+        return std::make_unique<ELUActivation>(*this);
     }
 
     float SoftplusActivation::fn( const float x ) const {
@@ -799,7 +824,7 @@ namespace jai {
         return 1 / (1 + std::exp(-x));
     }
     std::unique_ptr<Activation> SoftplusActivation::clone() const {
-        return std::make_unique<Activation>(new SoftplusActivation(*this));
+        return std::make_unique<SoftplusActivation>(*this);
     }
 
     float SigmoidActivation::fn( const float x ) const {
@@ -810,7 +835,7 @@ namespace jai {
         return sigmoid * (1 - sigmoid);
     }
     std::unique_ptr<Activation> SigmoidActivation::clone() const {
-        return std::make_unique<Activation>(new SigmoidActivation(*this));
+        return std::make_unique<SigmoidActivation>(*this);
     }
 
     AugSigmoidActivation::AugSigmoidActivation( const float l, const float u ) {
@@ -828,7 +853,7 @@ namespace jai {
         return this->range * sigmoid * (1 - sigmoid);
     }
     std::unique_ptr<Activation> AugSigmoidActivation::clone() const {
-        return std::make_unique<Activation>(new AugSigmoidActivation(*this));
+        return std::make_unique<AugSigmoidActivation>(*this);
     }
 
     float TanhActivation::fn( const float x ) const {
@@ -839,7 +864,7 @@ namespace jai {
         return 1 - tanh*tanh;
     }
     std::unique_ptr<Activation> TanhActivation::clone() const {
-        return std::make_unique<Activation>(new TanhActivation(*this));
+        return std::make_unique<TanhActivation>(*this);
     }
 
     float ExpActivation::fn( const float x ) const {
@@ -849,7 +874,7 @@ namespace jai {
         return std::exp(x);
     }
     std::unique_ptr<Activation> ExpActivation::clone() const {
-        return std::make_unique<Activation>(new ExpActivation(*this));
+        return std::make_unique<ExpActivation>(*this);
     }
 
     AugExpActivation::AugExpActivation( const float b ) {
@@ -866,7 +891,7 @@ namespace jai {
         return this->ln_of_base * std::pow(this->base, x);
     }
     std::unique_ptr<Activation> AugExpActivation::clone() const {
-        return std::make_unique<Activation>(new AugExpActivation(*this));
+        return std::make_unique<AugExpActivation>(*this);
     }
 
     PowerActivation::PowerActivation( const float p ) {
@@ -879,7 +904,7 @@ namespace jai {
         return this->power * std::pow(x, this->power-1);
     }
     std::unique_ptr<Activation> PowerActivation::clone() const {
-        return std::make_unique<Activation>(new PowerActivation(*this));
+        return std::make_unique<PowerActivation>(*this);
     }
     
     
@@ -951,18 +976,18 @@ namespace jai {
         }
     }
     std::unique_ptr<LayerActivation> UniformLayerActivation::clone() const {
-        return std::make_unique<LayerActivation>(
-            new UniformLayerActivation(*this->activation.get())
+        return std::make_unique<UniformLayerActivation>(
+            UniformLayerActivation(*this->activation)
         );
     }
-    bool UniformLayerActivation::isValidLayerSize( size_t layer_size ) const {
+    bool UniformLayerActivation::isValidLayerSize( size_t ) const {
         return true;
     }
 
     NonUniformLayerActivation::NonUniformLayerActivation( const std::vector<Activation*>& activations ) {
         for( size_t i = 0; i < activations.size(); ++i ) {
             this->activations.push_back(
-                std::make_unique<Activation>(activations[i])
+                activations[i]->clone()
             );
         }
      }
@@ -985,8 +1010,8 @@ namespace jai {
             activation_cpy_ptrs[i] = activation_cpy[i].get();
         }
 
-        return std::make_unique<LayerActivation>(
-            new NonUniformLayerActivation(activation_cpy_ptrs)
+        return std::make_unique<NonUniformLayerActivation>(
+            NonUniformLayerActivation(activation_cpy_ptrs)
         );
     }
     bool NonUniformLayerActivation::isValidLayerSize( size_t layer_size ) const {
@@ -1027,9 +1052,9 @@ namespace jai {
         }
     }
     std::unique_ptr<LayerActivation> SoftmaxLayerActivation::clone() const {
-        return std::make_unique<LayerActivation>(new SoftmaxLayerActivation());
+        return std::make_unique<SoftmaxLayerActivation>(SoftmaxLayerActivation());
     }
-    bool SoftmaxLayerActivation::isValidLayerSize( size_t layer_size ) const {
+    bool SoftmaxLayerActivation::isValidLayerSize( size_t ) const {
         return true;
     }
 
@@ -1054,9 +1079,9 @@ namespace jai {
         }
     }
     std::unique_ptr<SimpleLossFunction> SquaredDiffLossFunction::clone() const {
-        return std::make_unique<SimpleLossFunction>(new SquaredDiffLossFunction());
+        return std::make_unique<SquaredDiffLossFunction>(SquaredDiffLossFunction());
     }
-    bool SquaredDiffLossFunction::isValidLayerSize( size_t layer_size ) const {
+    bool SquaredDiffLossFunction::isValidLayerSize( size_t ) const {
         return true;
     }
 
@@ -1078,9 +1103,9 @@ namespace jai {
         }
     }
     std::unique_ptr<SimpleLossFunction> AbsoluteDiffLossFunction::clone() const {
-        return std::make_unique<SimpleLossFunction>(new AbsoluteDiffLossFunction());
+        return std::make_unique<AbsoluteDiffLossFunction>(AbsoluteDiffLossFunction());
     }
-    bool AbsoluteDiffLossFunction::isValidLayerSize( size_t layer_size ) const {
+    bool AbsoluteDiffLossFunction::isValidLayerSize( size_t ) const {
         return true;
     }
 
@@ -1105,9 +1130,9 @@ namespace jai {
         }
     }
     std::unique_ptr<SimpleLossFunction> CrossEntropyLossFunction::clone() const {
-        return std::make_unique<SimpleLossFunction>(new CrossEntropyLossFunction());
+        return std::make_unique<CrossEntropyLossFunction>(CrossEntropyLossFunction());
     }
-    bool CrossEntropyLossFunction::isValidLayerSize( size_t layer_size ) const {
+    bool CrossEntropyLossFunction::isValidLayerSize( size_t ) const {
         return true;
     }
 
@@ -1128,6 +1153,7 @@ namespace jai {
                 layer_sizes[i] = hidden_layer_size;
             }
             layer_sizes[layer_count - 1] = output_layer_size;
+            return layer_sizes;
         }
 
         template<size_t RANK>
@@ -1141,15 +1167,15 @@ namespace jai {
             const float m_decay = hp.momentum_decay;
             const float sqr_m_decay = hp.sqr_momentum_decay;
             // Update momentums
-            const RaggedTensor<3> policy_gradients_complement = policy_gradients * (1 - m_decay);
+            const RaggedTensor<RANK> policy_gradients_complement = policy_gradients * (1 - m_decay);
             policy_momentums = (policy_momentums * m_decay) + 
                                (policy_gradients_complement);
             policy_sqr_momentums = (policy_sqr_momentums * sqr_m_decay) +
                                    (policy_gradients * policy_gradients_complement);
 
             // Calculate m_hat from momentums to shrink effect of momentum over time
-            const RaggedTensor<3> m_hat = policy_momentums / (1 - std::pow(m_decay, policy_updates + 1));
-            RaggedTensor<3> sqr_m_hat = (policy_sqr_momentums / (1 - std::pow(sqr_m_decay, policy_updates + 1)))
+            const RaggedTensor<RANK> m_hat = policy_momentums / (1 - std::pow(m_decay, policy_updates + 1));
+            RaggedTensor<RANK> sqr_m_hat = (policy_sqr_momentums / (1 - std::pow(sqr_m_decay, policy_updates + 1)))
                                         .transform([]( float val ) { return std::sqrt(val) + NN_EPSILON; });
 
             // Update gradients
@@ -1184,6 +1210,17 @@ namespace jai {
         output_layer_activation
     ) { }
     
+    NeuralNetwork::NeuralNetwork(
+        const std::initializer_list<size_t> layer_sizes, 
+        const Activation& hidden_activation, 
+        const LayerActivation& output_layer_activation
+    ) : NeuralNetwork(
+        layer_sizes.size(),
+        layer_sizes.begin(),
+        hidden_activation,
+        output_layer_activation
+    ) { }
+
     NeuralNetwork::NeuralNetwork(
         const size_t layer_count,
         const size_t layer_sizes[],
@@ -1477,8 +1514,8 @@ namespace jai {
     Vector NeuralNetwork::train( 
         const BaseMatrix& training_inputs,
         const BaseMatrix& training_expected_outputs,
-        const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
-        const Hyperparameters& training_hyperparameters = Hyperparameters()
+        const SimpleLossFunction& loss_function,
+        const Hyperparameters& training_hyperparameters
     ) {
         // Check that the size of the data is valid
         if( training_inputs.size(0) != training_expected_outputs.size(0) ) {
@@ -1513,7 +1550,7 @@ namespace jai {
         RaggedMatrix bias_sqr_momentums = this->bias.emptied();
 
         // Create vector with datapoint indexes
-        std::vector<size_t> indexes = std::vector<size_t>(n);
+        std::vector<size_t> indexes(n);
         for( size_t i = 0; i < n; ++i ) {
             indexes[i] = i;
         }
@@ -1532,6 +1569,7 @@ namespace jai {
             // Iterate over each batch
             size_t i = 0;
             while( i < n ) {
+                std::cout << "4.2\n";
                 // Create reused tensors
                 Vector loss_D(this->output_layer_size);
                 RaggedTensor<3> propagated_vals = this->getEmptyPropagationTensor();
@@ -1541,6 +1579,7 @@ namespace jai {
                 float loss_sum = 0;
                 RaggedTensor<3> total_weight_gradients = this->weights.emptied();
                 RaggedMatrix total_bias_gradients = this->bias.emptied();
+                std::cout << "4.3\n";
 
                 // Iterate over each datapoint in the batch and add to the gradients
                 size_t j = 0;
@@ -1558,6 +1597,7 @@ namespace jai {
 
                     ++i; ++j;
                 }
+                std::cout << "4.4\n";
 
                 // Save average loss for this batch
                 error = loss_sum / j;
@@ -1572,6 +1612,7 @@ namespace jai {
                     total_bias_gradients, 
                     hp.regularization_strength
                 );
+                std::cout << "4.5\n";
                 // Apply momentums to gradients
                 updateAndApplyMomentums(
                     total_weight_gradients,
@@ -1587,6 +1628,7 @@ namespace jai {
                     policy_updates,
                     hp
                 );
+                std::cout << "4.6\n";
                 // Update the network with the final gradients
                 this->updateNetwork(
                     total_weight_gradients * hp.learning_rate,
@@ -1598,6 +1640,7 @@ namespace jai {
 
             ++epochs;
         }
+        std::cout << "5\n";
 
         return Vector(losses.size(), losses.data());
     }
@@ -1605,8 +1648,8 @@ namespace jai {
     // TODO: Implement
     Vector NeuralNetwork::train(
         SimpleDataStream& training_data_stream,
-        const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
-        const Hyperparameters& training_hyperparameters = Hyperparameters()
+        const SimpleLossFunction& loss_function,
+        const Hyperparameters& training_hyperparameters
     ) {
         // Check that the sizes of the inputs and outputs returned by the data stream match the network
         if( training_data_stream.inputSize() != this->input_layer_size ) {
@@ -1656,12 +1699,15 @@ namespace jai {
         const size_t layer_count = this->getLayerCount();
         size_t inner_matrix_sizes[layer_count][2];
         // Set input layer size
-        inner_matrix_sizes[0][0] = input_layer_size;
+        inner_matrix_sizes[0][0] = this->input_layer_size;
         inner_matrix_sizes[0][1] = 2;
+        std::cout << inner_matrix_sizes[0][0] << " " << inner_matrix_sizes[0][1] << "\n";
         // Set every layer after
         for( size_t i = 1; i < layer_count; ++i ) {
             inner_matrix_sizes[i][0] = this->bias[i].size();
             inner_matrix_sizes[i][1] = 2;
+            std::cout << this->bias[i].size() << "\n";
+            std::cout << inner_matrix_sizes[i][0] << " " << inner_matrix_sizes[i][1] << "\n";
         }
 
         return RaggedTensor<3>(layer_count, inner_matrix_sizes);
@@ -1670,7 +1716,7 @@ namespace jai {
     std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn ) {
         // Display layer sizes
         fs << "Layers: ";
-        for(int i = 0; i < nn.getLayerCount(); i++) {
+        for( size_t i = 0; i < nn.getLayerCount(); i++ ) {
             fs << nn.getLayerSize(i) << ' ';
         }
         // Display weights and bias values

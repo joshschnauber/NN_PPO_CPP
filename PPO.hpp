@@ -14,8 +14,6 @@
  */
 
 
-#ifndef PPO_HPP
-#define PPO_HPP
 
 #include "CircularBuffer.hpp"
 #include "NeuralNetwork.hpp"
@@ -25,7 +23,12 @@
 
 
 
-// Declaration
+#ifndef PPO_HPP
+#define PPO_HPP
+
+
+
+/* Declaration */
 namespace jai {
 
     // Class representing all the timestates for one agent.
@@ -205,7 +208,8 @@ namespace jai {
 } // end jai
 
 
-// Implementation
+
+/* Implementation */
 namespace jai {
 
     // NESTED CLASS DEFINITIONS
@@ -725,6 +729,7 @@ namespace jai {
     }
 
 } // end jai
+
 
 
 #endif

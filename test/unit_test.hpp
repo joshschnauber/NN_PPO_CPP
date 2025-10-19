@@ -6,11 +6,21 @@
 
 
 
+#include <exception>
+
+
+
+#ifndef UNIT_TEST_HPP
+#define UNIT_TEST_HPP
+
+
+
 /* Text coloring start and end escape sequences for Test Failures and Test Successes */
 #define TFS "\033[1;31m"
 #define TFE "\033[0m"
 #define TSS "\033[1;32m"
 #define TSE "\033[0m"
+
 
 /**
  * Starts unit testing on a larger unit of functionality, usually an entire file or class
@@ -45,7 +55,7 @@
  * `END_UNIT_TEST` should be called after this.
  */
 #define UNIT_TEST( unit_test_name_ )                                    \
-    {                                                                   \
+    try {                                                               \
         total_unit_tests++;                                             \
         const std::string unit_test_name = unit_test_name_;             \
         int total_tests = 0;                                            \
@@ -66,7 +76,20 @@
                       << total_tests << " tests failed"                 \
                       << TFE << "\n";                                   \
         }                                                               \
-    }
+    }                                                                   \
+    catch( const std::exception& e ) {                                  \
+        total_failed_unit_tests++;                                      \
+        std::cerr << TFS                                                \
+                  << "Unit Test Threw Exception: "                      \
+                  << e.what()                                           \
+                  << TFE << "\n";                                       \
+    }                                                                   \
+    catch( ... ) {                                                      \
+        total_failed_unit_tests++;                                      \
+        std::cerr << TFS                                                \
+                  << "Unit Test Threw Unknown Exception"                \
+                  << TFE << "\n";                                       \
+    }                                                   
 
 
 #define test_equals( _A, _B ) \
@@ -124,3 +147,7 @@
         _Code_Block; std::cerr << TFS << "Assert Throws failed at line " << __LINE__ << TFE << "\n"; \
         total_failed_tests++; \
     } catch(...) { }
+
+
+
+#endif

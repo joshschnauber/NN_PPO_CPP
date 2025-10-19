@@ -5,10 +5,13 @@
  * Tests the correctness of the activation functions, and then does a simple test by 
  * training a NeuralNetwork to determine which of two numbers is larger.
  *
- * g++ -g -Wextra -Wall nn_test.cpp -o nn_test.exe
+ * g++ -std=c++20 -g -Wextra -Wall nn_test.cpp -o nn_test.exe
  * nn_test.exe 
- * 100 2 3 0.01
+ * g++ -std=c++20 -g -Wextra -Wall nn_test.cpp -o nn_test.out
+ * ./nn_test.out
  */
+
+
 
 #include "../../NeuralNetwork.hpp"
 #include "../unit_test.hpp"
@@ -92,12 +95,12 @@ void test_activation() {
         test_true( augsigmoid_a_2.verify() );
         test_true( augsigmoid_a_3.verify() );
 
-        test_throws( jai::AugSigmoidActivation augsigmoid_a_4 = jai::AugSigmoidActivation(2, 1) );
-        test_throws( jai::AugSigmoidActivation augsigmoid_a_5 = jai::AugSigmoidActivation(1, -1) );
-        test_throws( jai::AugSigmoidActivation augsigmoid_a_6 = jai::AugSigmoidActivation(-2, -2.1) );
+        test_throws( jai::AugSigmoidActivation _ = jai::AugSigmoidActivation(2, 1) );
+        test_throws( jai::AugSigmoidActivation _ = jai::AugSigmoidActivation(1, -1) );
+        test_throws( jai::AugSigmoidActivation _ = jai::AugSigmoidActivation(-2, -2.1) );
 
-        test_not_throws( jai::AugSigmoidActivation augsigmoid_a_7 = jai::AugSigmoidActivation(10, 10) );
-        test_not_throws( jai::AugSigmoidActivation augsigmoid_a_8 = jai::AugSigmoidActivation(-10, -10) );
+        test_not_throws( jai::AugSigmoidActivation _ = jai::AugSigmoidActivation(10, 10) );
+        test_not_throws( jai::AugSigmoidActivation _ = jai::AugSigmoidActivation(-10, -10) );
 
     END_UNIT_TEST
 
@@ -132,8 +135,8 @@ void test_activation() {
         test_true( augexp_a_3.verify() );
         test_true( augexp_a_4.verify() );
 
-        test_throws( jai::AugExpActivation augexp_a_5 = jai::AugExpActivation(-1) );
-        test_throws( jai::AugExpActivation augexp_a_6 = jai::AugExpActivation(-10) );
+        test_throws( jai::AugExpActivation _ = jai::AugExpActivation(-1) );
+        test_throws( jai::AugExpActivation _ = jai::AugExpActivation(-10) );
 
     END_UNIT_TEST
 
@@ -175,13 +178,57 @@ void test_layer_activation() {
 
 
 /**
- * Runs simple greater than or less than training test on NeuralNetwork
+ * Runs simple functionality tests on the NeuralNetwork
  */
 void test_neural_network() {
     START_TESTING("NeuralNetwork")
 
 
-    UNIT_TEST("XOR Training")
+    UNIT_TEST("Network Size Constructors") {
+
+        jai::NeuralNetwork nn1({2, 3, 1});
+
+        test_equals( nn1.getInputLayerSize(), 2 );
+        test_equals( nn1.getOutputLayerSize(), 1 );
+        test_equals( nn1.getLayerCount(), 3 );
+        test_equals( nn1.getLayerSize(0), 2 );
+        test_equals( nn1.getLayerSize(1), 3 );
+        test_equals( nn1.getLayerSize(2), 1 );
+
+        jai::NeuralNetwork nn2({4, 5, 7, 3}, jai::SigmoidActivation(), jai::SoftmaxLayerActivation());
+
+        test_equals( nn2.getInputLayerSize(), 4 );
+        test_equals( nn2.getOutputLayerSize(), 3 );
+        test_equals( nn2.getLayerCount(), 4 );
+        test_equals( nn2.getLayerSize(0), 4 );
+        test_equals( nn2.getLayerSize(1), 5 );
+        test_equals( nn2.getLayerSize(2), 7 );
+        test_equals( nn2.getLayerSize(3), 3 );
+
+        jai::NeuralNetwork nn3(2, 1, 4, 1);
+
+        test_equals( nn3.getInputLayerSize(), 2 );
+        test_equals( nn3.getOutputLayerSize(), 1 );
+        test_equals( nn3.getLayerCount(), 3 );
+        test_equals( nn3.getLayerSize(0), 2 );
+        test_equals( nn3.getLayerSize(1), 4 );
+        test_equals( nn3.getLayerSize(2), 1 );
+
+        jai::NeuralNetwork nn4(10, 5, 8, 3);
+
+        test_equals( nn4.getInputLayerSize(), 10 );
+        test_equals( nn4.getOutputLayerSize(), 5 );
+        test_equals( nn4.getLayerCount(), 5 );
+        test_equals( nn4.getLayerSize(0), 10 );
+        test_equals( nn4.getLayerSize(1), 8 );
+        test_equals( nn4.getLayerSize(2), 8 );
+        test_equals( nn4.getLayerSize(3), 8 );
+        test_equals( nn4.getLayerSize(4), 5 );
+
+    } END_UNIT_TEST
+
+
+    UNIT_TEST("XOR Training") {
 
         jai::NeuralNetwork xor_nn(
             2, 
@@ -194,8 +241,8 @@ void test_neural_network() {
         jai::NeuralNetwork::Hyperparameters hp;
         hp.max_epochs = 1000;
 
-        jai::Matrix X = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
-        jai::Matrix Y = {{0}, {1}, {1}, {0}};
+        const jai::Matrix X = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+        const jai::Matrix Y = {{0}, {1}, {1}, {0}};
 
         xor_nn.train(
             X,
@@ -205,14 +252,16 @@ void test_neural_network() {
         );
 
         for( size_t i = 0; i < X.size(0); ++i ) {
-            float y_p = xor_nn.propagate(X[0])[0];
+            const float out = xor_nn.propagate(X[0])[0];
+            const float y_p = (out > 0.5) ? 1 : 0;
             std::cout << y_p << "\n";
+            test_equals( y_p, Y[i][0] );
         }
 
-    END_UNIT_TEST
+    } END_UNIT_TEST
 
 
-    UNIT_TEST("Larger Number Training With DataStream")
+    UNIT_TEST("Larger Number Training With DataStream") {
 
         // Create data stream to retrieve two random numbers, and
         // whether or not one is larger than the other
@@ -249,7 +298,7 @@ void test_neural_network() {
         };
 
 
-    END_UNIT_TEST
+    } END_UNIT_TEST
 
 
     // Get input arguments

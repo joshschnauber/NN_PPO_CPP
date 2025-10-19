@@ -48,9 +48,8 @@
  * - Add .copy() functions that returns a new Tensor, and make more non size changing
  *   mutators alter the Tensor instead of creating a new one.
  */
+
  
-#ifndef TENSOR_HPP
-#define TENSOR_HPP
 
 #include <cstddef>
 #include <cstring>
@@ -63,6 +62,11 @@
 #include <type_traits>
 #include <concepts>
 #include <utility>
+
+
+
+#ifndef TENSOR_HPP
+#define TENSOR_HPP
 
 
 
@@ -79,6 +83,7 @@ namespace jai {
     struct InitializerElementsType<1> {
         using type = std::initializer_list<float>;
     };
+    
     /**
      * Recursive type used to initialize a Tensor of rank `RANK` with elements.
      * An InitializerElements<RANK> contains a set of InitializerElements<RANK-1>s,
@@ -1245,7 +1250,6 @@ namespace jai {
     }
     
     template<size_t RANK>
-    
     template<typename Func>
     BaseTensor<RANK>& BaseTensor<RANK>::transform( Func transform_function ) {
         // Define a types for the value and index, so that the value is passed when
@@ -1475,7 +1479,7 @@ namespace jai {
     Tensor<2> BaseTensor<RANK>::mul( const BaseTensor<2>& other ) const 
     requires (RANK == 1) {
         // Create result Tensor
-        Tensor<2> result(this->dimensions[0], other.dimensions[1]);
+        Tensor<2> result({this->dimensions[0], other.dimensions[1]});
         // Perform matrix multiplication
         for( size_t i = 0; i < result.dimensions[0]; ++i ) {
             for( size_t j = 0; j < result.dimensions[1]; ++j ) {
@@ -1784,23 +1788,23 @@ namespace jai {
         // Copy dimensions from the first Tensor
         this->dimensions[0] = dim1;
         for( size_t i = 1; i < RANK; ++i ) {
-            this->dimensions[i] = tensor_refs[0].get().dimensions[i-1];
+            this->dimensions[i] = tensor_refs[0]->dimensions[i-1];
         }
         // Check that all Tensors have the same dimensions
         for( size_t i = 1; i < dim1; ++i ) {
             for( size_t j = 0; j < RANK; ++j ) {
-                if( this->dimensions[j+1] != tensor_refs[i].get().dimensions[j] ) {
+                if( this->dimensions[j+1] != tensor_refs[i]->dimensions[j] ) {
                     throw std::invalid_argument("Two or more dimension sizes do not match.");
                 }
             }
         }
         // Allocate memory for data
-        const size_t inner_tensor_size = tensor_refs[0].get().total_size;
+        const size_t inner_tensor_size = tensor_refs[0]->total_size;
         this->total_size = dim1 * inner_tensor_size;
         this->data_ = new float[this->total_size];
         // Copy data from Tensors into this
         for( size_t i = 0; i < dim1; ++i ) {
-            setValues(tensor_refs[i].get().data_, this->data_ + (i * inner_tensor_size), inner_tensor_size);  
+            setValues(tensor_refs[i]->data_, this->data_ + (i * inner_tensor_size), inner_tensor_size);  
         }
     }
 
@@ -1968,6 +1972,16 @@ namespace jai {
     }
 
 
+    /* Implementation Helper Functions for Handling Array References */
+    
+    namespace {
+        template <size_t N>
+        constexpr const size_t (&tail( const size_t (&array)[N] ))[N - 1] {
+            return *reinterpret_cast<const size_t (*)[N - 1]>(&array[1]);
+        }
+    }
+
+
     /* RaggedTensor Implementation */
 
     template<size_t RANK>
@@ -1981,12 +1995,18 @@ namespace jai {
     template<size_t RANK>
     RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t inner_tensor_dims[] ) 
     requires (RANK == 2) {
+        if( dim1_size == 0 ) {
+            throw std::invalid_argument("The first dimension size is less than 1.");
+        }
         // Allocate space for array of inner VTensors
         this->inner_tensors = new VTensor<1>[dim1_size];
         // Copy over dimension sizes and count the total size
         size_t total_size = 0;
         for( size_t i = 0; i < dim1_size; ++i ) {
             const size_t inner_tensor_size = inner_tensor_dims[i];
+            if( inner_tensor_size == 0 ) {
+                throw std::invalid_argument("One or more inner dimension sizes are less than 1.");
+            }
             // Copy over dimension size
             this->inner_tensors[i].dimensions[0] = inner_tensor_size;
             // Set inner tensor total size
@@ -2011,6 +2031,9 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK>::RaggedTensor( const size_t dim1_size, const size_t inner_tensor_dims[][RANK-1] ) {
+        if( dim1_size == 0 ) {
+            throw std::invalid_argument("The first dimension size is less than 1.");
+        }
         // Allocate space for array of inner VTensors
         this->inner_tensors = new VTensor<RANK-1>[dim1_size];
         // Copy over dimension sizes and count the total size
@@ -2020,6 +2043,9 @@ namespace jai {
             // Copy over dimension sizes
             for( size_t j = 0; j < RANK-1; ++j ) {
                 const size_t dim = inner_tensor_dims[i][j];
+                if( dim == 0 ) {
+                    throw std::invalid_argument("One or more inner dimension sizes are less than 1.");
+                }
                 this->inner_tensors[i].dimensions[j] = dim;
                 inner_tensor_size *= dim;
             }
@@ -2048,13 +2074,16 @@ namespace jai {
     requires (RANK == 2)  
         : RaggedTensor<RANK>(inner_tensor_dims.size(), inner_tensor_dims.begin()) { }
     
-        template<size_t RANK>
+    template<size_t RANK>
     RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims )
         : RaggedTensor<RANK>(inner_tensor_dims.size(), inner_tensor_dims.begin()) { }
     
-        template<size_t RANK>
+    template<size_t RANK>
     RaggedTensor<RANK>::RaggedTensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements ) {
         const size_t dim1 = elements.size();
+        if( dim1 == 0 ) {
+            throw std::invalid_argument("The first dimension size is less than 1.");
+        }
 
         // Allocate space for array of inner VTensors
         this->inner_tensors = new VTensor<RANK-1>[dim1];
@@ -2064,11 +2093,14 @@ namespace jai {
         for( size_t i = 0; i < dim1; ++i ) {
             // Copy over dimension sizes
             for( size_t j = 0; j < RANK-1; ++j ) {
-                const size_t dim = inner_tensor_ptrs[i].get().dimensions[j];
+                const size_t dim = inner_tensor_ptrs[i]->dimensions[j];
+                if( dim == 0 ) {
+                    throw std::invalid_argument("One or more inner dimension sizes are less than 1.");
+                }
                 this->inner_tensors[i].dimensions[j] = dim;
             }
             // Set inner tensor total size
-            const size_t inner_tensor_size = this->inner_tensors[i].total_size;
+            const size_t inner_tensor_size = inner_tensor_ptrs[i]->total_size;
             this->inner_tensors[i].total_size = inner_tensor_size;
 
             total_size += inner_tensor_size;
@@ -2084,7 +2116,7 @@ namespace jai {
         float* starting_pos = this->data_;
         for( size_t i = 0; i < dim1; ++i ) {
             this->inner_tensors[i].data_ = starting_pos;
-            this->inner_tensors[i].set(inner_tensor_ptrs[i]);
+            this->inner_tensors[i].set(inner_tensor_ptrs[i].get());
 
             starting_pos += this->inner_tensors[i].total_size;
         }
@@ -2140,8 +2172,8 @@ namespace jai {
     RaggedTensor<RANK>::RaggedTensor( RaggedTensor<RANK>&& other ) {
         // Move data to this RaggedTensor
         this->total_size = other.total_size;
-        this->data_ = other->data_;
-        this->dimension1 = other->dimension1;
+        this->data_ = other.data_;
+        this->dimension1 = other.dimension1;
         this->inner_tensors = other.inner_tensors;
 
         // Clear data from other RaggedTensor
@@ -2232,8 +2264,8 @@ namespace jai {
 
         // Move data to this RaggedTensor
         this->total_size = other.total_size;
-        this->data_ = other->data_;
-        this->dimension1 = other->dimension1;
+        this->data_ = other.data_;
+        this->dimension1 = other.dimension1;
         this->inner_tensors = other.inner_tensors;
 
         // Clear data from other RaggedTensor
@@ -2244,15 +2276,15 @@ namespace jai {
 
         return *this;
     }
-
+    
     template<size_t RANK>
     const float& RaggedTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
-        return this->inner_tensors[indexes[0]][indexes + 1];
+        return this->inner_tensors[indexes[0]][tail(indexes)];
     }
     
     template<size_t RANK>
     float& RaggedTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
-        return this->inner_tensors[indexes[0]][indexes + 1];
+        return this->inner_tensors[indexes[0]][tail(indexes)];
     }
     
     template<size_t RANK>
@@ -2420,7 +2452,7 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK>& RaggedTensor<RANK>::fill( const float fill ) {
-        fillValues(fill, this->data, this->total_size);
+        fillValues(fill, this->data_, this->total_size);
         return *this;
     }
     
@@ -2434,6 +2466,17 @@ namespace jai {
     template<size_t RANK>
     template<typename Func>
     RaggedTensor<RANK>& RaggedTensor<RANK>::transform( Func transform_function ) {
+        // Define a types for the value and index, so that the value is passed when
+        // `float` is defined as the argument and so that the index is passed when 
+        // `size_t` is defined as the argument.
+        // Since `float` and `size_t` can be implicitly converted between each other
+        // these types are needed to differentiate between a `float` and `size_t`
+        // argument in `transform_function`.
+        struct Value_t {
+            operator float();
+            operator size_t() = delete;
+        };
+
         // If the function takes no arguments
         if constexpr( std::is_invocable_r_v<float, Func> ) {
             for( size_t i = 0; i < this->total_size; ++i ) {
@@ -2443,7 +2486,7 @@ namespace jai {
         }
 
         // If the function just takes the values, but not any indexes
-        else if constexpr( std::is_invocable_r_v<float, Func, float> ) {
+        else if constexpr( std::is_invocable_r_v<float, Func, Value_t> ) {
             for( size_t i = 0; i < this->total_size; ++i ) {
                 this->data_[i] = transform_function(this->data_[i]);
             }

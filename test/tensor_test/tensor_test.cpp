@@ -697,23 +697,53 @@ void test_ragged_tensor() {
         jai::RaggedTensor<2> rt2_2({2, 2});
         jai::RaggedTensor<2> rt2_3({3, 2});
 
+        rt2_1[1][3] = 10;
+        rt2_1[3][1] = 20;
+        rt2_1[{2, 4}] = 30;
+
+        test_equals( rt2_1[1][3], 10 );
+        test_equals( (rt2_1[{1, 3}]), 10 );
+        test_equals( rt2_1[3][1], 20 );
+        test_equals( (rt2_1[{3, 1}]), 20 );
+        test_equals( rt2_1[2][4], 30 );
+        test_equals( (rt2_1[{2, 4}]), 30 );
+        
+    END_UNIT_TEST
+
+
+    UNIT_TEST("RANK=2 Tensor element constructor")
+    
+        jai::Tensor<1> t1 = {1, 2, 3};
+        jai::Tensor<1> t2 = {4, 5, 6, 7, 8};
+        jai::Tensor<1> t3 = {9, 10};
+        jai::RaggedTensor<2> rt1 = {t1, t2, t3};
+
+        test_equals( (rt1[{0, 1}]), 2 );
+        test_equals( (rt1[{1, 2}]), 6 );
+        test_equals( (rt1[{1, 4}]), 8 );
+        test_equals( (rt1[{2, 0}]), 9 );
+
     END_UNIT_TEST
 
 
     UNIT_TEST("RANK=3 constructor and assignment")
 
         size_t dims[4][3 - 1] = {{2, 3}, {3, 4}, {5, 6}, {2, 7}};
-        jai::RaggedTensor<3> rt2_1(3, dims);
-        
-        jai::RaggedTensor<3> rt3_1( {{2, 3}, {10, 2}} );
-        jai::RaggedTensor<3> rt3_2( {{203, 37}, {302, 26}, {455, 89}} );
+        jai::RaggedTensor<3> rt3_1(4, dims);
+        jai::RaggedTensor<3> rt3_2( {{2, 3}, {10, 2}} );
+        jai::RaggedTensor<3> rt3_3( {{203, 37}, {302, 26}, {455, 89}} );
+
+        rt3_1[0][{1, 2}] = 11;
+        rt3_1[{2, 3, 5}] = 12;
+
+        test_equals( (rt3_1[0][{1, 2}]), 11 );
+        test_equals( (rt3_1[{0, 1, 2}]), 11 );
+        test_equals( (rt3_1[2][{3, 5}]), 12 );
+        test_equals( (rt3_1[{2, 3, 5}]), 12 );
 
     END_UNIT_TEST
 
 
-    UNIT_TEST("")
-
-    
     /* TODO: Tests for RaggedTensor member functions */
 
     
