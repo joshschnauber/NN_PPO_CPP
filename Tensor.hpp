@@ -877,6 +877,12 @@ namespace jai {
          */
         size_t dim1Size() const;
 
+        /**
+         * Prints out the RaggedTensor as a string.
+         */
+        template<size_t R>
+        friend std::ostream& operator << ( std::ostream& fs, const RaggedTensor<R>& rt );
+
         /* Member Variables */
         protected:
 
@@ -1465,10 +1471,10 @@ namespace jai {
         // Create result Tensor
         Tensor<1> result(this->dimensions[0]);
         // Perform matrix multiplication
-        for( size_t i = 0; i < result.dimensions[0]; ++i ) {
+        for( size_t i = 0; i < this->dimensions[0]; ++i ) {
             float sum = 0;
-            for( size_t j = 0; j < result.dimensions[1]; ++j ) {
-                sum += (*this)[{j, i}] * other[i];
+            for( size_t j = 0; j < this->dimensions[1]; ++j ) {
+                sum += (*this)[{i, j}] * other[i];
             }
             result[i] = sum;
         }
@@ -2138,7 +2144,7 @@ namespace jai {
             this->inner_tensors[i] = other.inner_tensors[i];
             // Set a pointer from the newly allocated data
             this->inner_tensors[i].data_ = starting_pos;
-            starting_pos += other.inner_tensors[i].total_size;
+            starting_pos += this->inner_tensors[i].total_size;
         }
     }
     
@@ -2164,7 +2170,7 @@ namespace jai {
 
             // Set a pointer from the newly allocated data
             this->inner_tensors[i].data_ = starting_pos;
-            starting_pos += inner_tensor_total_size;
+            starting_pos += this->inner_tensors[i].total_size;
         }
     }
     
@@ -2185,8 +2191,11 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK>::~RaggedTensor() {
-        delete[] this->inner_tensors;
         delete[] this->data_;
+        std::cout << "d1: " << this->inner_tensors << "\n";
+        if( this->inner_tensors != nullptr )
+            std::cout << "it1: " << this->inner_tensors[0] << "\n";
+        delete[] this->inner_tensors;
     }
     
     template<size_t RANK>
@@ -2197,6 +2206,10 @@ namespace jai {
         }
         // Free the previous data held in this RaggedTensor.
         delete[] this->data_;
+        std::cout << "d2: " << this->inner_tensors << "\n";
+        if( this->inner_tensors != nullptr )
+            std::cout << "it2: " << this->inner_tensors[0] << "\n";
+        delete[] this->inner_tensors;
 
         this->total_size = other.total_size;
         // Allocate space for data and copy over
@@ -2226,6 +2239,10 @@ namespace jai {
         }
         // Free the previous data held in this RaggedTensor.
         delete[] this->data_;
+        std::cout << "d3: " << this->inner_tensors << "\n";
+        if( this->inner_tensors != nullptr )
+            std::cout << "it3: " << this->inner_tensors[0] << "\n";
+        delete[] this->inner_tensors;
 
         this->total_size = other.total_size;
         // Allocate space for data and copy over
@@ -2247,7 +2264,7 @@ namespace jai {
 
             // Set a pointer from the newly allocated data
             this->inner_tensors[i].data_ = starting_pos;
-            starting_pos += inner_tensor_total_size;
+            starting_pos += this->inner_tensors[i].total_size;
         }
 
         return *this;
@@ -2261,6 +2278,10 @@ namespace jai {
         }
         // Free the previous data held in this RaggedTensor.
         delete[] this->data_;
+        std::cout << "d4: " << this->inner_tensors << "\n";
+        if( this->inner_tensors != nullptr )
+            std::cout << "it4: " << this->inner_tensors[0] << "\n";
+        delete[] this->inner_tensors;
 
         // Move data to this RaggedTensor
         this->total_size = other.total_size;
@@ -2520,6 +2541,21 @@ namespace jai {
     template<size_t RANK>
     const float* RaggedTensor<RANK>::data() const {
         return this->data_;
+    }
+
+    template<size_t RANK>
+    std::ostream& operator << ( std::ostream& fs, const RaggedTensor<RANK>& rt ) {
+        // Open Tensor
+        fs << "{ ";
+        // Print inner Tensors
+        if( rt.dimension1 > 0 ) fs << rt[0];
+        for( size_t i = 1; i < rt.dimension1; ++i ) {
+            fs << ", ";
+            fs << rt[i];
+        }
+        // Close Tensor
+        fs << " }";
+        return fs;
     }
 }
 

@@ -238,6 +238,8 @@ void test_neural_network() {
             jai::ReLUActivation(), 
             jai::UniformLayerActivation(jai::SigmoidActivation())
         );
+        xor_nn.kaimingInit();
+        
         jai::NeuralNetwork::Hyperparameters hp;
         hp.max_epochs = 1000;
 

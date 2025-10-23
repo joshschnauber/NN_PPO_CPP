@@ -1262,7 +1262,7 @@ namespace jai {
         // Set activation functions
         for( size_t i = 0; i < layer_count - 2; ++i ) {
             this->layer_activations.push_back(
-                std::make_unique<UniformLayerActivation>(UniformLayerActivation(hidden_activation))
+                UniformLayerActivation(hidden_activation).clone()
             );
         }
         this->layer_activations.push_back(
@@ -1315,7 +1315,7 @@ namespace jai {
         const size_t layer_count = weights.dim1Size() + 1;
         for( size_t i = 0; i < layer_count - 2; ++i ) {
             this->layer_activations.push_back(
-                std::make_unique<UniformLayerActivation>(UniformLayerActivation(hidden_activation))
+                UniformLayerActivation(hidden_activation).clone()
             );
         }
         this->layer_activations.push_back(
@@ -1364,6 +1364,7 @@ namespace jai {
             VMatrix layer_values = propagated_vals[i + 1];
             // Propagate through network
             VVector pre_activation = layer_values[0];
+            std::cout << "w: " << this->weights << "\n"; 
             pre_activation.set(
                 this->weights[i].mul(y) + this->bias[i]
             );
@@ -1569,7 +1570,6 @@ namespace jai {
             // Iterate over each batch
             size_t i = 0;
             while( i < n ) {
-                std::cout << "4.2\n";
                 // Create reused tensors
                 Vector loss_D(this->output_layer_size);
                 RaggedTensor<3> propagated_vals = this->getEmptyPropagationTensor();
@@ -1701,13 +1701,10 @@ namespace jai {
         // Set input layer size
         inner_matrix_sizes[0][0] = this->input_layer_size;
         inner_matrix_sizes[0][1] = 2;
-        std::cout << inner_matrix_sizes[0][0] << " " << inner_matrix_sizes[0][1] << "\n";
         // Set every layer after
         for( size_t i = 1; i < layer_count; ++i ) {
-            inner_matrix_sizes[i][0] = this->bias[i].size();
+            inner_matrix_sizes[i][0] = this->bias[i - 1].size();
             inner_matrix_sizes[i][1] = 2;
-            std::cout << this->bias[i].size() << "\n";
-            std::cout << inner_matrix_sizes[i][0] << " " << inner_matrix_sizes[i][1] << "\n";
         }
 
         return RaggedTensor<3>(layer_count, inner_matrix_sizes);
