@@ -1189,10 +1189,12 @@ namespace jai {
     
     template<size_t RANK>
     bool BaseTensor<RANK>::operator == ( const BaseTensor<RANK>& other ) const {
+        if( this == &other ) {
+            return true;
+        }
         if( !this->isSameSize(other) ) {
             return false;
         }
-
         return compareValuesForEquality(this->data_, other.data_, this->total_size);
     }
     
@@ -1474,7 +1476,7 @@ namespace jai {
         for( size_t i = 0; i < this->dimensions[0]; ++i ) {
             float sum = 0;
             for( size_t j = 0; j < this->dimensions[1]; ++j ) {
-                sum += (*this)[{i, j}] * other[i];
+                sum += (*this)[{i, j}] * other[j];
             }
             result[i] = sum;
         }
@@ -1794,23 +1796,23 @@ namespace jai {
         // Copy dimensions from the first Tensor
         this->dimensions[0] = dim1;
         for( size_t i = 1; i < RANK; ++i ) {
-            this->dimensions[i] = tensor_refs[0]->dimensions[i-1];
+            this->dimensions[i] = tensor_refs[0].get().dimensions[i-1];
         }
         // Check that all Tensors have the same dimensions
         for( size_t i = 1; i < dim1; ++i ) {
             for( size_t j = 0; j < RANK; ++j ) {
-                if( this->dimensions[j+1] != tensor_refs[i]->dimensions[j] ) {
+                if( this->dimensions[j+1] != tensor_refs[i].get().dimensions[j] ) {
                     throw std::invalid_argument("Two or more dimension sizes do not match.");
                 }
             }
         }
         // Allocate memory for data
-        const size_t inner_tensor_size = tensor_refs[0]->total_size;
+        const size_t inner_tensor_size = tensor_refs[0].get().total_size;
         this->total_size = dim1 * inner_tensor_size;
         this->data_ = new float[this->total_size];
         // Copy data from Tensors into this
         for( size_t i = 0; i < dim1; ++i ) {
-            setValues(tensor_refs[i]->data_, this->data_ + (i * inner_tensor_size), inner_tensor_size);  
+            setValues(tensor_refs[i].get().data_, this->data_ + (i * inner_tensor_size), inner_tensor_size);  
         }
     }
 
@@ -2099,14 +2101,14 @@ namespace jai {
         for( size_t i = 0; i < dim1; ++i ) {
             // Copy over dimension sizes
             for( size_t j = 0; j < RANK-1; ++j ) {
-                const size_t dim = inner_tensor_ptrs[i]->dimensions[j];
+                const size_t dim = inner_tensor_ptrs[i].get().dimensions[j];
                 if( dim == 0 ) {
                     throw std::invalid_argument("One or more inner dimension sizes are less than 1.");
                 }
                 this->inner_tensors[i].dimensions[j] = dim;
             }
             // Set inner tensor total size
-            const size_t inner_tensor_size = inner_tensor_ptrs[i]->total_size;
+            const size_t inner_tensor_size = inner_tensor_ptrs[i].get().total_size;
             this->inner_tensors[i].total_size = inner_tensor_size;
 
             total_size += inner_tensor_size;
@@ -2417,10 +2419,12 @@ namespace jai {
     
     template<size_t RANK>
     bool RaggedTensor<RANK>::operator == ( const RaggedTensor<RANK>& other ) const {
+        if( this == &other ) {
+            return true;
+        }
         if( !this->isSameSize(other) ) {
             return false;
         }
-
         return compareValuesForEquality(this->data_, other.data_, this->total_size);
     }
     

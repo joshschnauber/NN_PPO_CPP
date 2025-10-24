@@ -60,6 +60,7 @@
         const std::string unit_test_name = unit_test_name_;             \
         int total_tests = 0;                                            \
         int total_failed_tests = 0;                                     \
+        int total_passed_tests = 0;                                     \
         std::cout << "Starting Unit Test " << total_unit_tests << ": "  \
                   << unit_test_name << "\n";                            
 
@@ -69,84 +70,124 @@
  * `UNIT_TEST` should be called before this.
  */
 #define END_UNIT_TEST                                                   \
-        if( total_failed_tests > 0 ) {                                  \
+        if( total_failed_tests > 0                                      \
+            || total_passed_tests < total_tests ) {                     \
             total_failed_unit_tests++;                                  \
             std::cerr << TFS                                            \
                       << total_failed_tests << " out of "               \
                       << total_tests << " tests failed"                 \
                       << TFE << "\n";                                   \
         }                                                               \
+        if( total_failed_tests + total_passed_tests != total_tests ) {  \
+            std::cerr << TFS                                            \
+                      << "The number of failed tests ("                 \
+                      << total_failed_tests                             \
+                      << ") and the number of passed tests ("           \
+                      << total_passed_tests                             \
+                      << ") does not match the total number of tests (" \
+                      << total_tests << ")"                             \
+                      << TFE << "\n";                                   \
+        }                                                               \
     }                                                                   \
     catch( const std::exception& e ) {                                  \
         total_failed_unit_tests++;                                      \
         std::cerr << TFS                                                \
-                  << "Unit Test Threw Exception: "                      \
-                  << e.what()                                           \
+                  << "Unit Test Threw Exception at line "               \
+                  << __LINE__ << ": " << e.what()                       \
                   << TFE << "\n";                                       \
     }                                                                   \
     catch( ... ) {                                                      \
         total_failed_unit_tests++;                                      \
         std::cerr << TFS                                                \
-                  << "Unit Test Threw Unknown Exception"                \
+                  << "Unit Test Threw Unknown Exception at line "       \
+                  << __LINE__                                           \
                   << TFE << "\n";                                       \
     }                                                   
 
 
-#define test_equals( _A, _B ) \
-    total_tests++; \
-    try { \
-        const auto A = _A; \
-        const auto B = _B; \
-        if( A != B ) { \
-            std::cerr << TFS << "Test Equals failed at line " << __LINE__ << "; A=" << std::to_string(A) << " B=" << std::to_string(B) << TFE << "\n"; \
-            total_failed_tests++; \
-        } \
-    } catch(...) { \
-        std::cerr << TFS << "Test Equals threw exception at line " << __LINE__ << TFE << "\n"; \
-        total_failed_tests++; \
+#define test_equals( _A, _B )                                           \
+    total_tests++;                                                      \
+    try {                                                               \
+        const auto A = _A;                                              \
+        const auto B = _B;                                              \
+        if( A != B ) {                                                  \
+            total_failed_tests++;                                       \
+            std::cerr << TFS                                            \
+                      << "Test Equals failed at line " << __LINE__      \
+                      << "; A=" << A << " B=" << B                      \
+                      << TFE << "\n";                                   \
+        } else {                                                        \
+            total_passed_tests++;                                       \
+        }                                                               \
+    } catch(...) {                                                      \
+        total_failed_tests++;                                           \
+        std::cerr << TFS                                                \
+                  << "Test Equals threw exception at line " << __LINE__ \
+                  << TFE << "\n";                                       \
     }
 
-#define test_float_equals( _A, _B ) \
-    total_tests++; \
-    try { \
-        const float A = _A; \
-        const float B = _B; \
-        if( A - 1e-6 > B || B > A + 1e-6 ) { \
-            std::cerr << TFS << "Test Float Equals failed at line " << __LINE__ << "; A=" << A << " B=" << B << TFE << "\n"; \
-            total_failed_tests++; \
-        } \
-    } catch(...) { \
-        std::cerr << TFS << "Test Equals threw exception at line " << __LINE__ << TFE << "\n"; \
-        total_failed_tests++; \
+#define test_float_equals( _A, _B )                                     \
+    total_tests++;                                                      \
+    try {                                                               \
+        const float A = _A;                                             \
+        const float B = _B;                                             \
+        if( A - 1e-6 > B || B > A + 1e-6 ) {                            \
+            total_failed_tests++;                                       \
+            std::cerr << TFS                                            \
+                      << "Test Float Equals failed at line " << __LINE__\
+                      << "; A=" << A << " B=" << B                      \
+                      << TFE << "\n";                                   \
+        } else {                                                        \
+            total_passed_tests++;                                       \
+        }                                                               \
+    } catch(...) {                                                      \
+        total_failed_tests++;                                           \
+        std::cerr << TFS                                                \
+                  << "Test Float Equals threw exception at line "       \
+                  << __LINE__ << TFE << "\n";                           \
     }
 
-#define test_true( _Expression ) \
-    total_tests++; \
-    try { \
-        if( !(_Expression) ) { \
-            std::cerr << TFS << "Test True failed at line " << __LINE__ << TFE << "\n"; \
-            total_failed_tests++; \
-        } \
-    } catch(...) { \
-        std::cerr << "Test True threw exception at line " << __LINE__ << TFE << "\n"; \
-        total_failed_tests++; \
+#define test_true( _Expression )                                        \
+    total_tests++;                                                      \
+    try {                                                               \
+        if( !(_Expression) ) {                                          \
+            total_failed_tests++;                                       \
+            std::cerr << TFS                                            \
+                      << "Test True failed at line " << __LINE__        \
+                      << TFE << "\n";                                   \
+        } else {                                                        \
+            total_passed_tests++;                                       \
+        }                                                               \
+    } catch(...) {                                                      \
+        total_failed_tests++;                                           \
+        std::cerr << TFS                                                \
+                  << "Test True threw exception at line " << __LINE__   \
+                  << TFE << "\n";                                       \
     }
 
-#define test_not_throws( _Code_Block ) \
-    total_tests++; \
-    try { \
-        _Code_Block; \
-    } catch(...) { \
-        std::cerr << TFS << "Assert Not Throws failed at line " << __LINE__ << TFE << "\n"; \
-        total_failed_tests++; \
+#define test_not_throws( _Code_Block )                                  \
+    total_tests++;                                                      \
+    try {                                                               \
+        _Code_Block;                                                    \
+        total_passed_tests++;                                           \
+    } catch(...) {                                                      \
+        total_failed_tests++;                                           \
+        std::cerr << TFS                                                \
+                  << "Test Not Throws failed at line " << __LINE__      \
+                  << TFE << "\n";                                       \
     }
 
 #define test_throws( _Code_Block ) \
-    total_tests++; \
-    try { \
-        _Code_Block; std::cerr << TFS << "Assert Throws failed at line " << __LINE__ << TFE << "\n"; \
-        total_failed_tests++; \
-    } catch(...) { }
+    total_tests++;                                                      \
+    try {                                                               \
+        _Code_Block;                                                    \
+        total_failed_tests++;                                           \
+        std::cerr << TFS                                                \
+                  << "Test Throws failed at line " << __LINE__          \
+                  << TFE << "\n";                                       \
+    } catch(...) {                                                      \
+        total_passed_tests++;                                           \
+    }
 
 
 

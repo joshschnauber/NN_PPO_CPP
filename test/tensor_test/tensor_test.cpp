@@ -5,6 +5,8 @@
  *
  * g++ -std=c++20 -g -Wextra -Wall tensor_test.cpp -o tensor_test.exe
  * tensor_test.exe
+ * g++ -std=c++20 -g -Wextra -Wall tensor_test.cpp -o tensor_test.out
+ * ./tensor_test.out
  */
 
 
@@ -677,6 +679,52 @@ void test_base_tensor() {
     /* TODO: Test cases for Tensor multiplication and division operators */
 
 
+    UNIT_TEST("mul() with matrices") {
+
+        const jai::Matrix m_1 = {{-2, 1}, {0, 4}};
+        const jai::Matrix m_2 = {{6, 5}, {-7, 1}};
+
+        test_equals( m_1.mul(m_2), jai::Matrix({{-19, -9}, {-28, 4}}) );
+
+        const jai::Matrix m_3 = {{3, 2, 1, 5}, {9, 1, 3, 0}};
+        const jai::Matrix m_4 = {{2, 9, 0}, {1, 3, 5}, {2, 4, 7}, {8, 1, 5}};
+
+        test_equals( m_3.mul(m_4), jai::Matrix({{50, 42, 42}, {25, 96, 26}}) );
+
+    } END_UNIT_TEST
+
+    UNIT_TEST("mul() with matrix times vector") {
+
+        const jai::Matrix m_1 = {{3, -5}, {9, 2}};
+        const jai::Vector v_1 = {3, 6};
+
+        test_equals( m_1.mul(v_1), jai::Vector({-21, 39}) );
+        
+        const jai::Matrix m_2 = {{1, 9, -2}, {3, -6, 7}, {3, 5, 4}, {-4, 10, -12}};
+        const jai::Vector v_2 = {-2, 5, 8};
+
+        test_equals( m_2.mul(v_2), jai::Vector({27, 20, 51, -38}) );
+
+    } END_UNIT_TEST
+
+    UNIT_TEST("mul() with vector times matrix") {
+
+        const jai::Vector v_1 = {2, -3};
+        const jai::Matrix m_1 = {{6, 4, -2}};
+
+        test_equals( v_1.mul(m_1), jai::Matrix({{12, 8, -4}, {-18, -12, 6}}) );
+        
+        const jai::Vector v_2 = {{1, 2, 3, 4}};
+        const jai::Matrix m_2 = {{10, 20, 30}};
+
+        test_equals( v_2.mul(m_2), jai::Matrix({{10, 20, 30}, 
+                                                {20, 40, 60}, 
+                                                {30, 60, 90}, 
+                                                {40, 80, 120}}) );
+
+    } END_UNIT_TEST
+
+
     /* TODO: Test cases for other Vector and Matrix specific operations */
 
     
@@ -692,7 +740,7 @@ void test_ragged_tensor() {
     START_TESTING("Ragged Tensor")
 
 
-    UNIT_TEST("RANK=2 constructor and assignment")
+    UNIT_TEST("RANK=2 constructor and assignment") {
 
         size_t dims[4] = {3, 4, 5, 2};
         jai::RaggedTensor<2> rt2_1(4, dims);
@@ -710,10 +758,10 @@ void test_ragged_tensor() {
         test_equals( rt2_1[2][4], 30 );
         test_equals( (rt2_1[{2, 4}]), 30 );
         
-    END_UNIT_TEST
+    } END_UNIT_TEST
 
 
-    UNIT_TEST("RANK=2 Tensor element constructor")
+    UNIT_TEST("RANK=2 Tensor element constructor") {
     
         jai::Tensor<1> t1 = {1, 2, 3};
         jai::Tensor<1> t2 = {4, 5, 6, 7, 8};
@@ -725,10 +773,10 @@ void test_ragged_tensor() {
         test_equals( (rt1[{1, 4}]), 8 );
         test_equals( (rt1[{2, 0}]), 9 );
 
-    END_UNIT_TEST
+    } END_UNIT_TEST
 
 
-    UNIT_TEST("RANK=3 constructor and assignment")
+    UNIT_TEST("RANK=3 constructor and assignment") {
 
         size_t dims[4][3 - 1] = {{2, 3}, {3, 4}, {5, 6}, {2, 7}};
         jai::RaggedTensor<3> rt3_1(4, dims);
@@ -743,7 +791,7 @@ void test_ragged_tensor() {
         test_equals( (rt3_1[2][{3, 5}]), 12 );
         test_equals( (rt3_1[{2, 3, 5}]), 12 );
 
-    END_UNIT_TEST
+    } END_UNIT_TEST
 
 
     /* TODO: Tests for RaggedTensor member functions */
