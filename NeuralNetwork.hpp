@@ -1364,7 +1364,6 @@ namespace jai {
             VMatrix layer_values = propagated_vals[i + 1];
             // Propagate through network
             VVector pre_activation = layer_values[0];
-            std::cout << "w: " << this->weights << "\n"; 
             pre_activation.set(
                 this->weights[i].mul(y) + this->bias[i]
             );
@@ -1428,6 +1427,9 @@ namespace jai {
                 // Assign delta_i, which assigns the gradient for this bias layer
                 delta_i
             );
+            std::cout << "\tx_i: " << x_i << "\n";
+            std::cout << "\tpost_D: " << post_D << "\n";
+            std::cout << "\tdelta_i: " << delta_i << "\n";
 
             // Calculate layer weight gradients
             const VVector y_i_mo = propagated_vals[(i + 1) - 1][1];
@@ -1545,10 +1547,10 @@ namespace jai {
         losses.reserve(hp.max_epochs * std::ceil(n / hp.batch_size));
 
         // Store momentums
-        RaggedTensor<3> weight_momentums = this->weights.emptied();
-        RaggedTensor<3> weight_sqr_momentums = this->weights.emptied();
-        RaggedMatrix bias_momentums = this->bias.emptied();
-        RaggedMatrix bias_sqr_momentums = this->bias.emptied();
+        RaggedTensor<3> weight_momentums = this->weights.emptied().fill(0);
+        RaggedTensor<3> weight_sqr_momentums = this->weights.emptied().fill(0);
+        RaggedMatrix bias_momentums = this->bias.emptied().fill(0);
+        RaggedMatrix bias_sqr_momentums = this->bias.emptied().fill(0);
 
         // Create vector with datapoint indexes
         std::vector<size_t> indexes(n);
@@ -1564,6 +1566,10 @@ namespace jai {
         size_t policy_updates = 0;
         float error = NN_INFINITY;
         while( error >= hp.error_tolerance && epochs < hp.max_epochs ) {
+            std::cout << "epochs: " << epochs << "\n";
+            std::cout << "weights: " << this->weights << "\n";
+            std::cout << "bias: " << this->bias << "\n";
+
             // Shuffle indexes
             std::shuffle(indexes.begin(), indexes.end(), rd_gen);
 
@@ -1577,9 +1583,8 @@ namespace jai {
                 RaggedMatrix bias_gradients = this->bias.emptied();
                 // Create accumulating variables
                 float loss_sum = 0;
-                RaggedTensor<3> total_weight_gradients = this->weights.emptied();
-                RaggedMatrix total_bias_gradients = this->bias.emptied();
-                std::cout << "4.3\n";
+                RaggedTensor<3> total_weight_gradients = this->weights.emptied().fill(0);
+                RaggedMatrix total_bias_gradients = this->bias.emptied().fill(0);   
 
                 // Iterate over each datapoint in the batch and add to the gradients
                 size_t j = 0;
@@ -1587,6 +1592,7 @@ namespace jai {
                     const size_t index = indexes[i];
                     // Propagate through network
                     VVector output = this->propagate(training_inputs[index], propagated_vals);
+                    //std::cout << "pv: " << propagated_vals << "\n";
                     // Calculate loss and loss_D
                     loss_sum += loss_function.fn(output, training_expected_outputs[index]);
                     loss_function.fn_D(output, training_expected_outputs[index], loss_D);
@@ -1597,11 +1603,9 @@ namespace jai {
 
                     ++i; ++j;
                 }
-                std::cout << "4.4\n";
 
-                // Save average loss for this batch
-                error = loss_sum / j;
-                losses.push_back(error);
+                std::cout << "tbg1" << total_bias_gradients << "\n"; 
+
                 // Average gradients
                 total_weight_gradients /= j;
                 total_bias_gradients /= j;
@@ -1612,7 +1616,9 @@ namespace jai {
                     total_bias_gradients, 
                     hp.regularization_strength
                 );
-                std::cout << "4.5\n";
+
+                std::cout << "tbg2" << total_bias_gradients << "\n"; 
+
                 // Apply momentums to gradients
                 updateAndApplyMomentums(
                     total_weight_gradients,
@@ -1628,19 +1634,23 @@ namespace jai {
                     policy_updates,
                     hp
                 );
-                std::cout << "4.6\n";
+                std::cout << "tbg3" << total_bias_gradients << "\n"; 
                 // Update the network with the final gradients
                 this->updateNetwork(
                     total_weight_gradients * hp.learning_rate,
                     total_bias_gradients * hp.learning_rate
                 );
 
+                // Save average loss for this batch
+                error = loss_sum / j;
+                losses.push_back(error);
+                std::cout << "error: " << error << "\n";
+
                 ++policy_updates;
             }
 
             ++epochs;
         }
-        std::cout << "5\n";
 
         return Vector(losses.size(), losses.data());
     }
@@ -1699,33 +1709,30 @@ namespace jai {
         const size_t layer_count = this->getLayerCount();
         size_t inner_matrix_sizes[layer_count][2];
         // Set input layer size
-        inner_matrix_sizes[0][0] = this->input_layer_size;
-        inner_matrix_sizes[0][1] = 2;
+        inner_matrix_sizes[0][0] = 2;
+        inner_matrix_sizes[0][1] = this->input_layer_size;
         // Set every layer after
         for( size_t i = 1; i < layer_count; ++i ) {
-            inner_matrix_sizes[i][0] = this->bias[i - 1].size();
-            inner_matrix_sizes[i][1] = 2;
+            inner_matrix_sizes[i][0] = 2;
+            inner_matrix_sizes[i][1] = this->bias[i - 1].size();
         }
 
         return RaggedTensor<3>(layer_count, inner_matrix_sizes);
     }
 
     std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn ) {
+        fs << "{ ";
         // Display layer sizes
-        fs << "Layers: ";
-        for( size_t i = 0; i < nn.getLayerCount(); i++ ) {
-            fs << nn.getLayerSize(i) << ' ';
+        fs << "Layers: [" << nn.getLayerSize(0);
+        for( size_t i = 1; i < nn.getLayerCount(); i++ ) {
+            fs << ", " << nn.getLayerSize(i);
         }
+        fs << "]";
         // Display weights and bias values
-        fs << "\nWeights: ";
-        for( size_t i = 0; i < nn.weights.totalSize(); ++i ) {
-            fs << nn.weights.data()[i] << ' ';
-        }
-        fs << "\nBias': ";
-        for( size_t i = 0; i < nn.bias.totalSize(); ++i ) {
-            fs << nn.bias.data()[i] << ' ';
-        }
+        fs << ", Weights: " << nn.weights;
+        fs << ", Bias': " << nn.bias;
 
+        fs << " }";
         return fs;
     }
 }

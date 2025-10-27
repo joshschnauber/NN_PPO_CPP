@@ -2,11 +2,9 @@
 
 /*
  * Test of different parts of NeuralNetwork.hpp.
- * Tests the correctness of the activation functions, and then does a simple test by 
- * training a NeuralNetwork to determine which of two numbers is larger.
  *
  * g++ -std=c++20 -g -Wextra -Wall nn_test.cpp -o nn_test.exe
- * nn_test.exe 
+ * nn_test.exe
  * g++ -std=c++20 -g -Wextra -Wall nn_test.cpp -o nn_test.out
  * ./nn_test.out
  */
@@ -228,6 +226,33 @@ void test_neural_network() {
     } END_UNIT_TEST
 
 
+    UNIT_TEST("propagate()") {
+
+        const jai::NeuralNetwork nn1 = jai::NeuralNetwork(
+            jai::Tensor<3>({ {{0.25, 0.5}, {0.75, 0.2}}, {{0.1, 0.5}, {0.8, 0.75}} }), 
+            jai::Tensor<2>({ {1, 0.5}, {0.1, 0.25} }),
+            jai::LinearActivation(),
+            jai::UniformLayerActivation(jai::LinearActivation())
+        );
+
+        jai::Vector out1 = nn1.propagate(jai::Vector({0, 0}));
+        jai::Vector out2 = nn1.propagate(jai::Vector({1, 1}));
+        jai::Vector out3 = nn1.propagate(jai::Vector({0.5, 0.25}));
+
+        test_equals( out1, jai::Vector({0.45, 1.425}) );
+        test_equals( out2, jai::Vector({0.00, 0.00}) );
+        test_equals( out3, jai::Vector({0.00, 0.00}) );
+
+    } END_UNIT_TEST
+
+
+    UNIT_TEST("backpropagate()") {
+
+
+        
+    } END_UNIT_TEST
+
+
     UNIT_TEST("XOR Training") {
 
         jai::NeuralNetwork xor_nn(
@@ -239,9 +264,11 @@ void test_neural_network() {
             jai::UniformLayerActivation(jai::SigmoidActivation())
         );
         xor_nn.kaimingInit();
+
+        std::cout << "NN0: " << xor_nn << "\n";
         
         jai::NeuralNetwork::Hyperparameters hp;
-        hp.max_epochs = 1000;
+        hp.max_epochs = 10;
 
         const jai::Matrix X = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
         const jai::Matrix Y = {{0}, {1}, {1}, {0}};
@@ -256,7 +283,7 @@ void test_neural_network() {
         for( size_t i = 0; i < X.size(0); ++i ) {
             const float out = xor_nn.propagate(X[0])[0];
             const float y_p = (out > 0.5) ? 1 : 0;
-            std::cout << y_p << "\n";
+            std::cout << "y_p: " << y_p << "\n";
             test_equals( y_p, Y[i][0] );
         }
 
@@ -304,10 +331,10 @@ void test_neural_network() {
 
 
     // Get input arguments
-    int c = 100;
-    int hidden_layer_size = 2;
-    int hidden_layer_count = 3;
-    float learning_rate = 0.01f;
+    //int c = 100;
+    //int hidden_layer_size = 2;
+    //int hidden_layer_count = 3;
+    //float learning_rate = 0.01f;
     //if(argc > 1){
     //    c = std::stoi(argv[1]);
     //    if(argc > 3){
@@ -394,7 +421,7 @@ void test_neural_network() {
 
 
 
-int main(int argc, char **argv){
+int main() {
     
     /* Run each set of tests */
     test_activation();

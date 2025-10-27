@@ -884,7 +884,7 @@ namespace jai {
         friend std::ostream& operator << ( std::ostream& fs, const RaggedTensor<R>& rt );
 
         /* Member Variables */
-        protected:
+        public:
 
         /**
          * The total number of elements in the RaggedTensor.
@@ -1444,7 +1444,7 @@ namespace jai {
     template<size_t RANK>
     Tensor<2> BaseTensor<RANK>::transpose() const 
     requires (RANK == 1) {
-        Tensor<2> result({0, this->dimensions[0]});
+        Tensor<2> result({1, this->dimensions[0]});
         setValues(this->data_, result.data_, this->total_size);
         return result;
     }
@@ -2194,9 +2194,6 @@ namespace jai {
     template<size_t RANK>
     RaggedTensor<RANK>::~RaggedTensor() {
         delete[] this->data_;
-        std::cout << "d1: " << this->inner_tensors << "\n";
-        if( this->inner_tensors != nullptr )
-            std::cout << "it1: " << this->inner_tensors[0] << "\n";
         delete[] this->inner_tensors;
     }
     
@@ -2208,9 +2205,6 @@ namespace jai {
         }
         // Free the previous data held in this RaggedTensor.
         delete[] this->data_;
-        std::cout << "d2: " << this->inner_tensors << "\n";
-        if( this->inner_tensors != nullptr )
-            std::cout << "it2: " << this->inner_tensors[0] << "\n";
         delete[] this->inner_tensors;
 
         this->total_size = other.total_size;
@@ -2241,9 +2235,6 @@ namespace jai {
         }
         // Free the previous data held in this RaggedTensor.
         delete[] this->data_;
-        std::cout << "d3: " << this->inner_tensors << "\n";
-        if( this->inner_tensors != nullptr )
-            std::cout << "it3: " << this->inner_tensors[0] << "\n";
         delete[] this->inner_tensors;
 
         this->total_size = other.total_size;
@@ -2280,9 +2271,6 @@ namespace jai {
         }
         // Free the previous data held in this RaggedTensor.
         delete[] this->data_;
-        std::cout << "d4: " << this->inner_tensors << "\n";
-        if( this->inner_tensors != nullptr )
-            std::cout << "it4: " << this->inner_tensors[0] << "\n";
         delete[] this->inner_tensors;
 
         // Move data to this RaggedTensor
