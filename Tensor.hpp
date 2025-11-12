@@ -666,7 +666,15 @@ namespace jai {
         explicit 
         RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims );
         /**
+         * Constructs a RaggedTensor initialized with the given `elements`.
+         * Throws an error if `elements` or any inner elements inside `elements` has a
+         * size of 0.
+         * Throws an error if any of the elements inside `elements` are non-rectangular.
+         */
+        RaggedTensor( InitializerElements<RANK> elements );
+        /**
          * Constructs a RaggedTensor containing the tensors specified in `elements`.
+         * Throws an error if `elements` has a size of 0.
          */
         RaggedTensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements );
 
@@ -2086,6 +2094,50 @@ namespace jai {
     RaggedTensor<RANK>::RaggedTensor( std::initializer_list<size_t[RANK-1]> inner_tensor_dims )
         : RaggedTensor<RANK>(inner_tensor_dims.size(), inner_tensor_dims.begin()) { }
     
+    template<size_t RANK>
+    RaggedTensor<RANK>::RaggedTensor( InitializerElements<RANK> elements ) {
+        const size_t dim1 = elements.size();
+        const auto inner_elements = elements.begin();
+        if( dim1 == 0 ) {
+            throw std::invalid_argument("The first dimension size is less than 1.");
+        }
+
+        // Allocate space for array of inner VTensors
+        this->inner_tensors = new VTensor<RANK-1>[dim1];
+        // Get dimension sizes and count the total size
+        this->total_size = 0;
+        for( size_t k = 0; k < dim1; ++k ) {
+            VTensor<RANK-1>& inner_tensor = this->inner_tensors[k];
+            // Recursively count the total size of the inner initializer elements
+            inner_tensor.total_size = countInitializerElements<RANK-1>(inner_elements[k], inner_tensor.dimensions);
+            this->total_size += inner_tensor.total_size;
+            // Check if the inner tensor is rectangular
+            if( !checkInitializerElements<RANK-1>(inner_elements[k], inner_tensor.dimensions) ) {
+                throw std::invalid_argument("The given inner initializer elements are not rectangular");
+            }
+            // Check if any of the dimensions are 0
+            for( size_t i = 0; i < RANK-1; ++i ) {
+                if( inner_tensor.dimensions[i] < 1 ) {
+                    throw std::invalid_argument("One or more dimension sizes are less than 1.");
+                }
+            }
+        }
+        
+        // Allocate memory
+        this->data_ = new float[this->total_size];
+
+        // Set first dimension size
+        this->dimension1 = dim1;
+        // Assign data from flattened inner initializer elements
+        float* data_ptr = this->data_;
+        for( size_t k = 0; k < dim1; ++k ) {
+            VTensor<RANK-1>& inner_tensor = this->inner_tensors[k];
+            // Set inner tensor elements
+            inner_tensor.data_ = data_ptr;
+            flattenInitializerElements<RANK-1>(inner_elements[k], data_ptr);
+        }
+    }
+
     template<size_t RANK>
     RaggedTensor<RANK>::RaggedTensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements ) {
         const size_t dim1 = elements.size();

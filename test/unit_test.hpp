@@ -15,11 +15,16 @@
 
 
 
+/* Indenting */
+#define INDENT     "  "
+#define DBL_INDENT "    "
+
 /* Text coloring start and end escape sequences for Test Failures and Test Successes */
 #define TFS "\033[1;31m"
 #define TFE "\033[0m"
 #define TSS "\033[1;32m"
 #define TSE "\033[0m"
+
 
 
 /**
@@ -61,7 +66,8 @@
         int total_tests = 0;                                            \
         int total_failed_tests = 0;                                     \
         int total_passed_tests = 0;                                     \
-        std::cout << "Starting Unit Test " << total_unit_tests << ": "  \
+        std::cout << INDENT                                             \
+                  << "Starting Unit Test " << total_unit_tests << ": "  \
                   << unit_test_name << "\n";                            
 
 /**
@@ -73,13 +79,13 @@
         if( total_failed_tests > 0                                      \
             || total_passed_tests < total_tests ) {                     \
             total_failed_unit_tests++;                                  \
-            std::cerr << TFS                                            \
+            std::cerr << INDENT << TFS                                  \
                       << total_failed_tests << " out of "               \
                       << total_tests << " tests failed"                 \
                       << TFE << "\n";                                   \
         }                                                               \
         if( total_failed_tests + total_passed_tests != total_tests ) {  \
-            std::cerr << TFS                                            \
+            std::cerr << INDENT << TFS                                  \
                       << "The number of failed tests ("                 \
                       << total_failed_tests                             \
                       << ") and the number of passed tests ("           \
@@ -91,14 +97,14 @@
     }                                                                   \
     catch( const std::exception& e ) {                                  \
         total_failed_unit_tests++;                                      \
-        std::cerr << TFS                                                \
+        std::cerr << INDENT << TFS                                      \
                   << "Unit Test Threw Exception at line "               \
                   << __LINE__ << ": " << e.what()                       \
                   << TFE << "\n";                                       \
     }                                                                   \
     catch( ... ) {                                                      \
         total_failed_unit_tests++;                                      \
-        std::cerr << TFS                                                \
+        std::cerr << INDENT << TFS                                      \
                   << "Unit Test Threw Unknown Exception at line "       \
                   << __LINE__                                           \
                   << TFE << "\n";                                       \
@@ -112,7 +118,7 @@
         const auto B = _B;                                              \
         if( A != B ) {                                                  \
             total_failed_tests++;                                       \
-            std::cerr << TFS                                            \
+            std::cerr << DBL_INDENT << TFS                              \
                       << "Test Equals failed at line " << __LINE__      \
                       << "; A=" << A << " B=" << B                      \
                       << TFE << "\n";                                   \
@@ -121,7 +127,7 @@
         }                                                               \
     } catch(...) {                                                      \
         total_failed_tests++;                                           \
-        std::cerr << TFS                                                \
+        std::cerr << DBL_INDENT << TFS                                  \
                   << "Test Equals threw exception at line " << __LINE__ \
                   << TFE << "\n";                                       \
     }
@@ -133,7 +139,7 @@
         const float B = _B;                                             \
         if( A - 1e-6 > B || B > A + 1e-6 ) {                            \
             total_failed_tests++;                                       \
-            std::cerr << TFS                                            \
+            std::cerr << DBL_INDENT << TFS                              \
                       << "Test Float Equals failed at line " << __LINE__\
                       << "; A=" << A << " B=" << B                      \
                       << TFE << "\n";                                   \
@@ -142,7 +148,7 @@
         }                                                               \
     } catch(...) {                                                      \
         total_failed_tests++;                                           \
-        std::cerr << TFS                                                \
+        std::cerr << DBL_INDENT << TFS                                  \
                   << "Test Float Equals threw exception at line "       \
                   << __LINE__ << TFE << "\n";                           \
     }
@@ -152,7 +158,7 @@
     try {                                                               \
         if( !(_Expression) ) {                                          \
             total_failed_tests++;                                       \
-            std::cerr << TFS                                            \
+            std::cerr << DBL_INDENT << TFS                              \
                       << "Test True failed at line " << __LINE__        \
                       << TFE << "\n";                                   \
         } else {                                                        \
@@ -160,7 +166,7 @@
         }                                                               \
     } catch(...) {                                                      \
         total_failed_tests++;                                           \
-        std::cerr << TFS                                                \
+        std::cerr << DBL_INDENT << TFS                                  \
                   << "Test True threw exception at line " << __LINE__   \
                   << TFE << "\n";                                       \
     }
@@ -172,7 +178,7 @@
         total_passed_tests++;                                           \
     } catch(...) {                                                      \
         total_failed_tests++;                                           \
-        std::cerr << TFS                                                \
+        std::cerr << DBL_INDENT << TFS                                  \
                   << "Test Not Throws failed at line " << __LINE__      \
                   << TFE << "\n";                                       \
     }
@@ -182,7 +188,7 @@
     try {                                                               \
         _Code_Block;                                                    \
         total_failed_tests++;                                           \
-        std::cerr << TFS                                                \
+        std::cerr << DBL_INDENT << TFS                                  \
                   << "Test Throws failed at line " << __LINE__          \
                   << TFE << "\n";                                       \
     } catch(...) {                                                      \

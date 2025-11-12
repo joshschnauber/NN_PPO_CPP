@@ -175,6 +175,22 @@ void test_layer_activation() {
 }
 
 
+
+/**
+ * Runs tests on each LossFunction to verify correctness
+ */
+void test_loss_function() {
+    START_TESTING("LayerActivation")
+
+    
+    /* TODO: Tests for LossFunction */
+
+
+    END_TESTING
+}
+
+
+
 /**
  * Runs simple functionality tests on the NeuralNetwork
  */
@@ -226,11 +242,33 @@ void test_neural_network() {
     } END_UNIT_TEST
 
 
-    UNIT_TEST("propagate()") {
+    UNIT_TEST("propagate() with ReLUActivation and one output") {
 
         const jai::NeuralNetwork nn1 = jai::NeuralNetwork(
-            jai::Tensor<3>({ {{0.25, 0.5}, {0.75, 0.2}}, {{0.1, 0.5}, {0.8, 0.75}} }), 
-            jai::Tensor<2>({ {1, 0.5}, {0.1, 0.25} }),
+            { {{-1.0, 1.0}, {1.0, -1.0}}, {{1.0, 1.0}} }, 
+            { {0.0, 0.0}, {0.0} },
+            jai::ReLUActivation(),
+            jai::UniformLayerActivation(jai::LinearActivation())
+        );
+
+        jai::Vector out1 = nn1.propagate(jai::Vector({0, 0}));
+        jai::Vector out2 = nn1.propagate(jai::Vector({0, 1}));
+        jai::Vector out3 = nn1.propagate(jai::Vector({1, 0}));
+        jai::Vector out4 = nn1.propagate(jai::Vector({1, 1}));
+
+        test_float_equals( out1[0], 0 );
+        test_float_equals( out2[0], 1 );
+        test_float_equals( out3[0], 1 );
+        test_float_equals( out4[0], 0 );
+
+    } END_UNIT_TEST
+
+
+    UNIT_TEST("propagate() with LinearActivation and two outputs") {
+
+        const jai::NeuralNetwork nn1 = jai::NeuralNetwork(
+            { {{0.25, 0.5}, {0.75, 0.2}}, {{0.1, 0.5}, {0.8, 0.75}} }, 
+            { {1, 0.5}, {0.1, 0.25} },
             jai::LinearActivation(),
             jai::UniformLayerActivation(jai::LinearActivation())
         );
@@ -239,16 +277,116 @@ void test_neural_network() {
         jai::Vector out2 = nn1.propagate(jai::Vector({1, 1}));
         jai::Vector out3 = nn1.propagate(jai::Vector({0.5, 0.25}));
 
-        test_equals( out1, jai::Vector({0.45, 1.425}) );
-        test_equals( out2, jai::Vector({0.00, 0.00}) );
-        test_equals( out3, jai::Vector({0.00, 0.00}) );
+        test_float_equals( out1[0], 0.45 );
+        test_float_equals( out1[1], 1.425 );
+        test_float_equals( out2[0], 1.00 );
+        test_float_equals( out2[1], 2.7375 );
+        test_float_equals( out3[0], 0.6875 );
+        test_float_equals( out3[1], 1.94375 );
 
     } END_UNIT_TEST
 
 
-    UNIT_TEST("backpropagate()") {
+    UNIT_TEST("backpropagate() with 0 loss gradient with one output") {
+
+        jai::RaggedTensor<3> weight_grads;
+        jai::RaggedMatrix bias_grads;
+
+        const jai::NeuralNetwork nn1 = jai::NeuralNetwork(
+            { {{-1.0, 1.0}, {1.0, -1.0}}, {{1.0, -1.0}, {-1.0, -1.0}, {1.0, 1.0}}, {{1.0, 1.0, -1.0}} }, 
+            { {0.0, 1.0}, {-1.0, 2.0, 0.5}, {2.0} },
+            jai::ReLUActivation(),
+            jai::UniformLayerActivation(jai::SigmoidActivation())
+        );
+        weight_grads = nn1.getWeights().emptied();
+        bias_grads = nn1.getBias().emptied();
+
+        nn1.backpropagate(
+            jai::Vector({0, 1}),
+            jai::Vector({0}),
+            weight_grads,
+            bias_grads
+        );
+       
+        for( size_t i = 0; i < weight_grads.totalSize(); ++i ) {
+            test_float_equals( weight_grads.data()[i], 0 );
+        }
+        for( size_t i = 0; i < bias_grads.totalSize(); ++i ) {
+            test_float_equals( bias_grads.data()[i], 0 );
+        }
+        
+    } END_UNIT_TEST
 
 
+    UNIT_TEST("backpropagate() with non-zero loss gradient with one output") {
+
+        jai::RaggedTensor<3> weight_grads;
+        jai::RaggedMatrix bias_grads;
+
+        jai::NeuralNetwork nn1 = jai::NeuralNetwork(
+            { {{-0.9, 0.9}, {0.9, -0.9}}, {{0.9, 0.9}} }, 
+            { {0.1, 0.1}, {0.1} },
+            jai::ReLUActivation(),
+            jai::UniformLayerActivation(jai::LinearActivation())
+        );
+        weight_grads = nn1.getWeights().emptied();
+        bias_grads = nn1.getBias().emptied();
+
+        nn1.backpropagate(
+            jai::Vector({1, 1}),
+            jai::Vector({-0.5}),
+            weight_grads,
+            bias_grads
+        );
+       
+        test_float_equals( (weight_grads[{0, 0, 0}]), -0.45 );
+        test_float_equals( (weight_grads[{0, 0, 1}]), -0.45 );
+        test_float_equals( (weight_grads[{0, 1, 0}]), -0.45 );
+        test_float_equals( (weight_grads[{0, 1, 1}]), -0.45 );
+        test_float_equals( (weight_grads[{1, 0, 0}]), -0.05 );
+        test_float_equals( (weight_grads[{1, 0, 1}]), -0.05 );
+
+        test_float_equals( (bias_grads[{0, 0}]), -0.45 );
+        test_float_equals( (bias_grads[{0, 1}]), -0.45 );
+        test_float_equals( (bias_grads[{1, 0}]), -0.5 );
+        
+    } END_UNIT_TEST
+
+
+    UNIT_TEST("backpropagate() with non-zero loss gradient with two outputs") {
+
+        jai::RaggedTensor<3> weight_grads;
+        jai::RaggedMatrix bias_grads;
+
+        jai::NeuralNetwork nn1 = jai::NeuralNetwork(
+            { {{6.0, -2.0}, {-3.0, 5.0}}, {{1.0, 0.25}, {-2.0, 2.0}} }, 
+            { {0.0, 0.0}, {0.0, 0.0} },
+            jai::SigmoidActivation(),
+            jai::UniformLayerActivation(jai::SigmoidActivation())
+        );
+        weight_grads = nn1.getWeights().emptied();
+        bias_grads = nn1.getBias().emptied();
+
+        nn1.backpropagate(
+            jai::Vector({3, 1}),
+            jai::Vector({-0.536116, 0.246064}),
+            weight_grads,
+            bias_grads
+        );
+
+        test_float_equals( (weight_grads[{0, 0, 0}]), 0.00 );
+        test_float_equals( (weight_grads[{0, 0, 1}]), 0.00 );
+        test_float_equals( (weight_grads[{0, 1, 0}]), 0.00142015 );
+        test_float_equals( (weight_grads[{0, 1, 1}]), 0.000473383 );
+        test_float_equals( (weight_grads[{1, 0, 0}]), -0.105188 );
+        test_float_equals( (weight_grads[{1, 0, 1}]), -0.00189222 );
+        test_float_equals( (weight_grads[{1, 1, 0}]), 0.0265491 );
+        test_float_equals( (weight_grads[{1, 1, 1}]), 0.000477517 );
+
+        test_float_equals( (bias_grads[{0, 0}]), 0.00 );
+        test_float_equals( (bias_grads[{0, 1}]), 0.000473383 );
+        test_float_equals( (bias_grads[{1, 0}]), -0.105188 );
+        test_float_equals( (bias_grads[{1, 1}]), 0.0265491 );
         
     } END_UNIT_TEST
 
@@ -256,19 +394,22 @@ void test_neural_network() {
     UNIT_TEST("XOR Training") {
 
         jai::NeuralNetwork xor_nn(
-            2, 
-            1, 
-            2, 
-            1, 
+            2,
+            1,
+            2,
+            1,
             jai::ReLUActivation(), 
             jai::UniformLayerActivation(jai::SigmoidActivation())
         );
-        xor_nn.kaimingInit();
+        xor_nn.kaimingInit(100);
 
         std::cout << "NN0: " << xor_nn << "\n";
         
         jai::NeuralNetwork::Hyperparameters hp;
-        hp.max_epochs = 10;
+        hp.max_epochs = 100;
+        hp.regularization_strength = 0;
+        hp.momentum_decay = 0;
+        hp.sqr_momentum_decay = 0;
 
         const jai::Matrix X = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
         const jai::Matrix Y = {{0}, {1}, {1}, {0}};
@@ -276,14 +417,20 @@ void test_neural_network() {
         xor_nn.train(
             X,
             Y,
-            jai::SquaredDiffLossFunction(),
+            jai::CrossEntropyLossFunction(),
             hp
         );
 
+        std::cout << "NN End: " << xor_nn << "\n";
+
         for( size_t i = 0; i < X.size(0); ++i ) {
-            const float out = xor_nn.propagate(X[0])[0];
+            const float out = xor_nn.propagate(X[i])[0];
             const float y_p = (out > 0.5) ? 1 : 0;
+
+            std::cout << "in: " << X[i] << "\n";
+            std::cout << "out: " << out << "\n";
             std::cout << "y_p: " << y_p << "\n";
+            std::cout << "actual: " << Y[i] << "\n";
             test_equals( y_p, Y[i][0] );
         }
 

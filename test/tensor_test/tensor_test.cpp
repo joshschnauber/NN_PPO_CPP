@@ -761,6 +761,26 @@ void test_ragged_tensor() {
     } END_UNIT_TEST
 
 
+    UNIT_TEST("RANK=2 element constructor") {
+    
+        jai::RaggedTensor<2> rt1 = {{1, 2}, {3, 4}, {5, 6}};
+        jai::RaggedTensor<2> rt2 = {{1, 2, 3, 4, 5}, {6, 7, 8}, {9, 10, 11, 12}, {13, 14}};
+        
+        test_equals( (rt1[{0, 0}]), 1 );
+        test_equals( (rt1[{0, 1}]), 2 );
+        test_equals( (rt1[{1, 0}]), 3 );
+        test_equals( (rt1[{1, 1}]), 4 );
+        test_equals( (rt1[{2, 0}]), 5 );
+        test_equals( (rt1[{2, 1}]), 6 );
+
+        test_equals( (rt2[{0, 1}]), 2 );
+        test_equals( (rt2[{1, 2}]), 8 );
+        test_equals( (rt2[{2, 0}]), 9 );
+        test_equals( (rt2[{3, 1}]), 14 );
+
+    } END_UNIT_TEST
+
+
     UNIT_TEST("RANK=2 Tensor element constructor") {
     
         jai::Tensor<1> t1 = {1, 2, 3};

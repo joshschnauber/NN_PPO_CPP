@@ -618,15 +618,15 @@ namespace jai {
         /** 
          * Sets random network weights between min and max, and bias' to 0.
          */
-        void randomInit( const float min = -1, const float max = 1 );
+        void randomInit( const float min = -1, const float max = 1, const int seed = std::random_device()() );
         /** 
          * Sets random network weights and bias' based on Kaiming initialization
          */
-        void kaimingInit();
+        void kaimingInit( const int seed = std::random_device()() );
         /** 
          * Sets random network weights and bias' based on Xavier initialization
          */
-        void xavierInit();
+        void xavierInit( const int seed = std::random_device()() );
 
         /**
          * Updates the weights and bias' of the network with the given `weight_gradients`
@@ -1250,14 +1250,14 @@ namespace jai {
             weights_inner_tensor_dims[i][0] = layer_sizes[i + 1];
             weights_inner_tensor_dims[i][1] = layer_sizes[i];
         }
-        this->weights = RaggedTensor<3>(layer_count - 1, weights_inner_tensor_dims.data());
+        this->weights = RaggedTensor<3>(layer_count - 1, weights_inner_tensor_dims.data()).fill(0);
 
         // Create bias' tensor
         std::vector<size_t> bias_inner_tensor_dims(layer_count - 1);
         for( size_t i = 0; i < layer_count - 1; ++i ) {
             bias_inner_tensor_dims[i] = layer_sizes[i + 1];
         }
-        this->bias = RaggedMatrix(layer_count - 1, bias_inner_tensor_dims.data());
+        this->bias = RaggedMatrix(layer_count - 1, bias_inner_tensor_dims.data()).fill(0);
 
         // Set activation functions
         for( size_t i = 0; i < layer_count - 2; ++i ) {
@@ -1281,12 +1281,12 @@ namespace jai {
             throw std::invalid_argument("The weights and bias' Tensors must correspond to the same number of layers.");
         }
         for( size_t i = 0; i < bias.dim1Size(); ++i ) {
-            if( bias[i].size() != weights[i].size(1) ) {
+            if( bias[i].size() != weights[i].size(0) ) {
                 throw std::invalid_argument("The bias' and weights Tensor must match.");
             }
         }
         for( size_t i = 0; i < bias.dim1Size() - 1; ++i ) {
-            if( bias[i].size() != weights[i + 1].size(0) ) {
+            if( bias[i].size() != weights[i + 1].size(1) ) {
                 throw std::invalid_argument("The bias' and weights Tensor must match");
             }
         }
@@ -1408,7 +1408,8 @@ namespace jai {
         const size_t layer_count = this->getLayerCount();
 
         // Calculate gradients for hidden layers
-        for( size_t i = layer_count - 2; i > 0; --i ) {
+        for( size_t i_ = 0; i_ < layer_count - 1; ++i_ ) {
+            size_t i = (layer_count - 1) - i_ - 1;
             // If on last layer, use loss_D for post_D
             Vector post_D;
             if (i == layer_count - 2) {
@@ -1451,9 +1452,8 @@ namespace jai {
         bias_gradients += (2 * regularization_strength) * this->bias;
     }
 
-    void NeuralNetwork::randomInit( const float min, const float max ) {
-        std::random_device rd;
-        std::mt19937 rd_gen(rd());
+    void NeuralNetwork::randomInit( const float min, const float max, const int seed ) {
+        std::mt19937 rd_gen(seed);
         std::uniform_real_distribution dst(0.0, 1.0);
         
         // Assign weights
@@ -1469,9 +1469,8 @@ namespace jai {
         this->bias.fill(0);
     }
     
-    void NeuralNetwork::kaimingInit() {
-        std::random_device rd;
-        std::mt19937 rd_gen(rd());
+    void NeuralNetwork::kaimingInit( const int seed ) {
+        std::mt19937 rd_gen(seed);
         std::normal_distribution dst(0.0f, 1.0f);
 
         // Assign weights
@@ -1487,9 +1486,8 @@ namespace jai {
         this->bias.fill(0);
     }
     
-    void NeuralNetwork::xavierInit() {
-        std::random_device rd;
-        std::mt19937 rd_gen(rd());
+    void NeuralNetwork::xavierInit( const int seed ) {
+        std::mt19937 rd_gen(seed);
         std::uniform_real_distribution dst(-1.0, 1.0);
 
         // Assign weights
