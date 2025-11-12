@@ -3,9 +3,9 @@
 /*
  * Test of different member functions of the tensor classes in Tensor.hpp.
  *
- * g++ -std=c++20 -g -Wextra -Wall tensor_test.cpp -o tensor_test.exe
+ * g++ -std=c++20 -g -Wextra -Wall -D DEBUG tensor_test.cpp -o tensor_test.exe
  * tensor_test.exe
- * g++ -std=c++20 -g -Wextra -Wall tensor_test.cpp -o tensor_test.out
+ * g++ -std=c++20 -g -Wextra -Wall -D DEBUG tensor_test.cpp -o tensor_test.out
  * ./tensor_test.out
  */
 

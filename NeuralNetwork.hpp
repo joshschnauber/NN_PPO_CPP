@@ -424,6 +424,10 @@ namespace jai {
             BaseVector& training_expected_output
         ) = 0;
         /**
+         * Resets the data stream so that there is more data to retrieve.
+         */
+        virtual void reset() = 0;
+        /**
          * Returns the size of the datapoint training input
          */
         virtual size_t inputSize() const = 0;
@@ -1176,6 +1180,60 @@ namespace jai {
     }
 
 
+    /* NeuralNetwork Error Checking */
+
+    namespace {
+        /**
+         * Checks the arguments for training the NeuralNetwork
+         */
+        void checkTrain(
+            const NeuralNetwork& nn,
+            const BaseMatrix& training_inputs,
+            const BaseMatrix& training_expected_outputs,
+            const SimpleLossFunction& loss_function
+        ) {
+            // Check that the size of the data is valid
+            if( training_inputs.size(0) != training_expected_outputs.size(0) ) {
+                throw std::invalid_argument("The number of training inputs must be the same as the number of training outputs");
+            }
+            if( training_inputs.size(0) == 0 ) {
+                throw std::invalid_argument("There must be at least one data point");
+            }
+            // Check that the sizes of the given inputs and outputs match the network
+            if( training_inputs.size(1) != nn.getInputLayerSize() ) {
+                throw std::invalid_argument("The given training inputs must the network input layer size");
+            }
+            if( training_expected_outputs.size(1) != nn.getOutputLayerSize() ) {
+                throw std::invalid_argument("The given training outputs must the network output layer size");
+            }
+            // Check that the loss function is the correct size
+            if( !loss_function.isValidLayerSize(nn.getOutputLayerSize()) ) {
+                throw std::invalid_argument("The loss function input size must match the network output layer size");
+            }
+        }
+
+        /**
+         * Checks the arguments for training the NeuralNetwork
+         */
+        void checkTrain(
+            const NeuralNetwork& nn,
+            const SimpleDataStream& training_data_stream,
+            const SimpleLossFunction& loss_function
+        ) {
+            // Check that the sizes of the inputs and outputs returned by the data stream match the network
+            if( training_data_stream.inputSize() != nn.getInputLayerSize() ) {
+                throw std::invalid_argument("The given inputs do not match the network input layer size");
+            }
+            if( training_data_stream.outputSize() != nn.getOutputLayerSize() ) {
+                throw std::invalid_argument("The given outputs do not match the network output layer size");
+            }
+            // Check that the loss function is the correct size
+            if( !loss_function.isValidLayerSize(nn.getOutputLayerSize()) ) {
+                throw std::invalid_argument("The loss function input size does not match the network output layer size");
+            }
+        }
+    }
+
     /* NeuralNetwork Helper Functions */
     
     namespace {
@@ -1316,24 +1374,24 @@ namespace jai {
         const LayerActivation& output_layer_activation
     ) {
         // Check that the sizes of the weights and bias' match
-        if( weights.dim1Size() != bias.dim1Size() ) {
+        if( weights.size() != bias.size() ) {
             throw std::invalid_argument("The weights and bias' Tensors must correspond to the same number of layers.");
         }
-        for( size_t i = 0; i < bias.dim1Size(); ++i ) {
+        for( size_t i = 0; i < bias.size(); ++i ) {
             if( bias[i].size() != weights[i].size(0) ) {
                 throw std::invalid_argument("The bias' and weights Tensor must match.");
             }
         }
-        for( size_t i = 0; i < bias.dim1Size() - 1; ++i ) {
+        for( size_t i = 0; i < bias.size() - 1; ++i ) {
             if( bias[i].size() != weights[i + 1].size(1) ) {
                 throw std::invalid_argument("The bias' and weights Tensor must match");
             }
         }
         // Check if network sizes are invalid
-        if( bias.dim1Size() < 1 ) {
+        if( bias.size() < 1 ) {
             throw std::invalid_argument("Must have at least 2 layers.");
         }
-        for( size_t i = 0; i < bias.dim1Size(); ++i ) {
+        for( size_t i = 0; i < bias.size(); ++i ) {
             if( bias[i].size() < 1 ) {
                 throw std::invalid_argument("All layers must have a size greater than 0. ");
             }
@@ -1344,14 +1402,14 @@ namespace jai {
 
         // Set sizes
         this->input_layer_size = weights[0].size(0);
-        this->output_layer_size = weights[weights.dim1Size() - 1].size(1);
+        this->output_layer_size = weights[weights.size() - 1].size(1);
 
         // Set weights and bias'
         this->weights = weights;
         this->bias = bias;
 
         // Set activation functions
-        const size_t layer_count = weights.dim1Size() + 1;
+        const size_t layer_count = weights.size() + 1;
         for( size_t i = 0; i < layer_count - 2; ++i ) {
             this->layer_activations.push_back(
                 UniformLayerActivation(hidden_activation).clone()
@@ -1547,7 +1605,7 @@ namespace jai {
         this->weights -= weight_gradients;
         this->bias -= bias_gradients;
     }
-        
+    
     Vector NeuralNetwork::train( 
         const BaseMatrix& training_inputs,
         const BaseMatrix& training_expected_outputs,
@@ -1555,24 +1613,8 @@ namespace jai {
         const Hyperparameters& training_hyperparameters,
         const int seed
     ) {
-        // Check that the size of the data is valid
-        if( training_inputs.size(0) != training_expected_outputs.size(0) ) {
-            throw std::invalid_argument("The number of training inputs must be the same as the number of training outputs");
-        }
-        if( training_inputs.size(0) == 0 ) {
-            throw std::invalid_argument("There must be at least one data point");
-        }
-        // Check that the sizes of the given inputs and outputs match the network
-        if( training_inputs.size(1) != this->input_layer_size ) {
-            throw std::invalid_argument("The given training inputs must the network input layer size");
-        }
-        if( training_expected_outputs.size(1) != this->output_layer_size ) {
-            throw std::invalid_argument("The given training outputs must the network output layer size");
-        }
-        // Check that the loss function is the correct size
-        if( !loss_function.isValidLayerSize(this->output_layer_size) ) {
-            throw std::invalid_argument("The loss function input size must match the network output layer size");
-        }
+        // Check that all of the arguments are valid
+        checkTrain(*this, training_inputs, training_expected_outputs, loss_function);
 
         const size_t n = training_inputs.size(0);
         const Hyperparameters& hp = training_hyperparameters;
@@ -1676,9 +1718,9 @@ namespace jai {
             ++epochs;
         }
 
-        return Vector(losses.size(), losses.data());
+        return losses;
     }
-    
+
     // TODO: Implement
     Vector NeuralNetwork::train(
         SimpleDataStream& training_data_stream,
@@ -1686,21 +1728,11 @@ namespace jai {
         const Hyperparameters& training_hyperparameters,
         const int seed
     ) {
-        // Check that the sizes of the inputs and outputs returned by the data stream match the network
-        if( training_data_stream.inputSize() != this->input_layer_size ) {
-            throw std::invalid_argument("The given inputs do not match the network input layer size");
-        }
-        if( training_data_stream.outputSize() != this->output_layer_size ) {
-            throw std::invalid_argument("The given outputs do not match the network output layer size");
-        }
-        // Check that the loss function is the correct size
-        if( !loss_function.isValidLayerSize(this->output_layer_size) ) {
-            throw std::invalid_argument("The loss function input size does not match the network output layer size");
-        }
+        // Check that all of the arguments are valid
+        checkTrain(*this, training_data_stream, loss_function);
 
 
-
-        throw "NOT IMPLEMENTED";
+        return Vector();
     }
 
     
@@ -1719,7 +1751,7 @@ namespace jai {
     }
     
     size_t NeuralNetwork::getLayerCount() const {
-        return 1 + this->bias.dim1Size();
+        return 1 + this->bias.size();
     }
     
     const RaggedTensor<3>& NeuralNetwork::getWeights() const {

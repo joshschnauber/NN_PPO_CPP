@@ -57,6 +57,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <initializer_list>
+#include <vector>
 #include <cassert>
 
 #include <type_traits>
@@ -198,32 +199,28 @@ namespace jai {
         /**
          * Adds all of the elements in the `other` Tensor to all of the elements in
          * `this` Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have
-         * the same dimensions.
+         * The `other` Tensor must be the same size as `this` Tensor.
          * The dimensions of `this` Tensor are passed onto the result Tensor.
          */
         Tensor<RANK> operator + ( const BaseTensor<RANK>& other ) const;
         /**
          * Subtracts all of the elements in the `other` Tensor from all of the elements
          * in `this` Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have
-         * the same dimensions.
+         * The `other` Tensor must be the same size as `this` Tensor.
          * The dimensions of `this` Tensor are passed onto the result Tensor.
          */
         Tensor<RANK> operator - ( const BaseTensor<RANK>& other ) const;
         /**
          * Multiplies all of the elements in the `other` Tensor with all of the elements
          * in `this` Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have
-         * the same dimensions.
+         * The `other` Tensor must be the same size as `this` Tensor.
          * The dimensions of `this` Tensor are passed onto the result Tensor.
          */
         Tensor<RANK> operator * ( const BaseTensor<RANK>& other ) const;
         /**
          * Divides all of the elements in the `other` Tensor from all of the elements
          * in `this` Tensor and returns the result.
-         * Both Tensors must be the same total size, but do not necessarily have to have
-         * the same dimensions.
+         * The `other` Tensor must be the same size as `this` Tensor.
          * The dimensions of `this` Tensor are passed onto the result Tensor.
          */
         Tensor<RANK> operator / ( const BaseTensor<RANK>& other ) const;
@@ -269,28 +266,28 @@ namespace jai {
         /** 
          * Adds all of the elements in the other Tensor to all of the elements in `this`
          * Tensor.
-         * The `other` Tensor must be the same total size as `this` Tensor, but does not
+         * The `other` Tensor must be the same size as `this` Tensor.
          * necessarily have to have the same dimensions.
          */
         BaseTensor<RANK>& operator += ( const BaseTensor<RANK>& other );
         /**
          * Subtracts all of the elements in the other Tensor from all of the elements in
          * `this` Tensor.
-         * The `other` Tensor must be the same total size as `this` Tensor, but does not 
+         * The `other` Tensor must be the same size as `this` Tensor. 
          * necessarily have to have the same dimensions.
          */
         BaseTensor<RANK>& operator -= ( const BaseTensor<RANK>& other );
         /** 
          * Multiplies all of the elements in the `other` Tensor with all of the elements
          * in `this` Tensor.
-         * The `other` Tensor must be the same total size as `this` Tensor, but does not
+         * The `other` Tensor must be the same size as `this` Tensor.
          * necessarily have to have the same dimensions.
          */
         BaseTensor<RANK>& operator *= ( const BaseTensor<RANK>& other );
         /**
          * Divides all of the elements in the `other` Tensor from all of the elements in
          * `this` Tensor.
-         * The `other` Tensor must be the same total size as `this` Tensor, but does not 
+         * The `other` Tensor must be the same size as `this` Tensor. 
          * necessarily have to have the same dimensions.
          */
         BaseTensor<RANK>& operator /= ( const BaseTensor<RANK>& other );
@@ -307,10 +304,10 @@ namespace jai {
          */
         BaseTensor<RANK>& fill( const float fill );
         /**
-         * This sets the values in `this` Tensor to the values in `tensor`.
-         * The given `tensor` must have the same dimensions as `this` Tensor.
+         * This sets the values in `this` Tensor to the values in `other`.
+         * The `other` Tensor must be the same size as `this` Tensor.
          */
-        BaseTensor<RANK>& set( const BaseTensor<RANK>& tensor );
+        BaseTensor<RANK>& set( const BaseTensor<RANK>& other );
         /**
          * This transforms each element in `this` Tensor using the given 
          * `transform_function`, which should return a `float`.
@@ -419,7 +416,7 @@ namespace jai {
          * Returns the rank of the tensor (the number of dimensions).
          * NOTE: This is NOT the same as the matrix rank.
          */
-        size_t rank() const;
+        constexpr size_t rank() const;
         /**
          * Returns the total size of the Tensor (the total number of elements).
          */
@@ -429,15 +426,14 @@ namespace jai {
          */
         const float* data() const;
         /**
-         * Defined for RANK=1 Tensors, this returns the size of the Tensor.
-         * This is the same as calling totalSize()
+         * This returns the size of first dimension of the Tensor.
+         * For RANK=1 Tensors, this is the same as calling totalSize().
          */
-        size_t size() const
-        requires (RANK == 1);
+        size_t size() const;
         /**
-         * Defined for RANK>1 Tensors, this returns the size of the given dimension.
+         * This returns the size of the given dimension.
          */
-        size_t size( size_t dimension ) const;
+        size_t size( size_t dim_index ) const;
 
         /**
          * Prints out the Tensor as a string.
@@ -548,15 +544,21 @@ namespace jai {
          */
         Tensor( std::initializer_list<std::reference_wrapper<const BaseTensor<RANK-1>>> elements )
         requires (RANK > 1);
-
         /**
-         * Copy constructor.
+         * Defined for RANK=1 Tensors, constructs a Tensor initialized with the elements
+         * in the `std::vector<float>`
          */
-        Tensor( const Tensor<RANK>& other );
+        Tensor( const std::vector<float>& vec )
+        requires (RANK == 1);
+
         /**
          * Copy constructor from BaseTensor.
          */
         Tensor( const BaseTensor<RANK>& other );
+        /**
+         * Copy constructor.
+         */
+        Tensor( const Tensor<RANK>& other );
         /**
          * Move constructor.
          */
@@ -566,17 +568,17 @@ namespace jai {
          */
         ~Tensor();
         /**
-         * Assignment operator.
-         * Ensures that memory is freed when existing object is overwritten.
-         * Any VTensors referring to `this` Tensor will be invalidated.
-         */
-        Tensor<RANK>& operator = ( const Tensor<RANK>& other );
-        /**
          * Assignment operator from BaseTensor.
          * Ensures that memory is freed when existing object is overwritten.
          * Any VTensors referring to `this` Tensor will be invalidated.
          */
         Tensor<RANK>& operator = ( const BaseTensor<RANK>& other );
+        /**
+         * Assignment operator.
+         * Ensures that memory is freed when existing object is overwritten.
+         * Any VTensors referring to `this` Tensor will be invalidated.
+         */
+        Tensor<RANK>& operator = ( const Tensor<RANK>& other );
         /**
          * Move assignment operator.
          * Ensures that memory is freed when existing object is overwritten.
@@ -737,32 +739,28 @@ namespace jai {
         /**
          * Adds all of the elements in the `other` RaggedTensor to all of the elements in
          * `this` RaggedTensor and returns the result.
-         * Both RaggedTensors must be the same total size, but do not necessarily have to
-         * have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor. 
          * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
          */
         RaggedTensor<RANK> operator + ( const RaggedTensor<RANK>& other ) const;
         /**
          * Subtracts all of the elements in the `other` RaggedTensor from all of the
          * elements in `this` RaggedTensor and returns the result.
-         * Both RaggedTensors must be the same total size, but do not necessarily have to
-         * have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor. 
          * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
          */
         RaggedTensor<RANK> operator - ( const RaggedTensor<RANK>& other ) const;
         /**
          * Multiplies all of the elements in the `other` RaggedTensor with all of the
          * elements in `this` RaggedTensor and returns the result.
-         * Both RaggedTensors must be the same total size, but do not necessarily have to
-         * have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor. 
          * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
          */
         RaggedTensor<RANK> operator * ( const RaggedTensor<RANK>& other ) const;
         /**
          * Divides all of the elements in the `other` RaggedTensor from all of the
          * elements in `this` RaggedTensor and returns the result.
-         * Both RaggedTensors must be the same total size, but do not necessarily have to
-         * have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor. 
          * The dimensions of `this` RaggedTensor are passed onto the result RaggedTensor.
          */
         RaggedTensor<RANK> operator / ( const RaggedTensor<RANK>& other ) const;
@@ -812,29 +810,25 @@ namespace jai {
         /** 
          * Adds all of the elements in the other RaggedTensor to all of the elements in
          * `this` RaggedTensor.
-         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
-         * but does not necessarily have to have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor.
          */
         RaggedTensor<RANK>& operator += ( const RaggedTensor<RANK>& other );
         /**
          * Subtracts all of the elements in the other RaggedTensor from all of the
          * elements in `this` RaggedTensor.
-         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
-         * but does not necessarily have to have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor.
          */
         RaggedTensor<RANK>& operator -= ( const RaggedTensor<RANK>& other );
         /** 
          * Multiplies all of the elements in the `other` RaggedTensor to all of the
          * elements in `this` RaggedTensor.
-         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
-         * but does not necessarily have to have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor.
          */
         RaggedTensor<RANK>& operator *= ( const RaggedTensor<RANK>& other );
         /**
          * Divides all of the elements in the `other` RaggedTensor from all of the
          * elements in `this` RaggedTensor.
-         * The `other` RaggedTensor must be the same total size as `this` RaggedTensor,
-         * but does not necessarily have to have the same dimensions.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor.
          */
         RaggedTensor<RANK>& operator /= ( const RaggedTensor<RANK>& other );
         /** 
@@ -850,10 +844,10 @@ namespace jai {
          */
         RaggedTensor<RANK>& fill( const float fill );
         /**
-         * This sets the values in `this` RaggedTensor to the values in `tensor`.
-         * The given `tensor` must have the same dimensions as `this` RaggedTensor.
+         * This sets the values in `this` RaggedTensor to the values in `other`.
+         * The `other` RaggedTensor must be the same size as `this` RaggedTensor. 
          */
-        RaggedTensor<RANK>& set( const RaggedTensor<RANK>& tensor );
+        RaggedTensor<RANK>& set( const RaggedTensor<RANK>& other );
         /**
          * This transforms each element in `this` RaggedTensor using the given 
          * `transform_function`. The only argument the function should take is of type
@@ -871,7 +865,7 @@ namespace jai {
          * Returns the rank of the tensor (the number of dimensions).
          * NOTE: This is NOT the same as the matrix rank.
          */
-        size_t rank() const;
+        constexpr size_t rank() const;
         /**
          * Returns the total size of the RaggedTensor (the total number of elements).
          */
@@ -883,7 +877,7 @@ namespace jai {
         /**
          * Returns the size of the first dimension of this RaggedTensor.
          */
-        size_t dim1Size() const;
+        size_t size() const;
 
         /**
          * Prints out the RaggedTensor as a string.
@@ -930,6 +924,179 @@ namespace jai {
 
 /* Implementation */
 namespace jai {
+    /* Error Checking */
+
+    namespace {
+        /**
+         * Checks that `index` is within the bounds of the first dimension of `tensor`.
+         */
+        template<typename Tensor_t>
+        inline void debugCheckBound( 
+            [[maybe_unused]] const Tensor_t& tensor, 
+            [[maybe_unused]] const size_t index 
+        ) {
+        #ifdef DEBUG
+            const size_t size = tensor.size();
+            if( index >= size ) {
+                throw std::out_of_range(
+                    "Index " + std::to_string(index) + 
+                    " is out of bounds for tensor with size " + std::to_string(size)
+                );
+            }
+        #endif
+        }
+
+        /**
+         * Checks that `indexes` is within the bounds of `tensor`.
+         */
+        template<typename Tensor_t, size_t RANK>
+        inline void debugCheckBound( 
+            [[maybe_unused]] const Tensor_t& tensor, 
+            [[maybe_unused]] const size_t (&indexes)[RANK],
+            [[maybe_unused]] const size_t dim = 0
+        ) {
+        #ifdef DEBUG
+            const size_t index = indexes[dim];
+            const size_t size = tensor.size();
+        
+            if( index >= size ) {
+                throw std::out_of_range(
+                    "Index " + std::to_string(index) + 
+                    " is out of bounds in dimension " + std::to_string(dim) +
+                    " with size " + std::to_string(size)
+                );
+            }
+            
+            if constexpr( tensor.rank() > 1 ) {
+                debugCheckBound(tensor[index], indexes, dim + 1);
+            }
+        #endif
+        }
+
+        /**
+         * Checks that `dim_index` is within the bounds of the dimension sizes array.
+         */
+        template<typename Tensor_t>
+        inline void debugCheckDimensionsBound( 
+            [[maybe_unused]] const Tensor_t& tensor, 
+            [[maybe_unused]] const size_t dim_index 
+        ) {
+        #ifdef DEBUG
+            const size_t num_dims = tensor.rank();
+            if( dim_index >= num_dims ) {
+                throw std::out_of_range(
+                    "Dimension index " + std::to_string(dim_index) + 
+                    " is out of bounds for tensor with " + std::to_string(num_dims) +
+                    " dimensions"
+                );
+            }
+        #endif
+        }
+
+        /**
+         * Checks that `tensor_A` and `tensor_B` are the same size.
+         */
+        template<typename Tensor_t>
+        inline void debugCheckSizes(
+            [[maybe_unused]] const Tensor_t& tensor_A,
+            [[maybe_unused]] const Tensor_t& tensor_B
+        ) {
+        #ifdef DEBUG
+            if( !tensor_A.isSameSize(tensor_B) ) {
+                throw std::invalid_argument(
+                    "The tensor's sizes do not match"
+                );
+            }
+        #endif
+        }
+
+        /**
+         * Checks that `tensor_A` and `tensor_B` can have a cross product performed
+         * between them.
+         */
+        template<typename Tensor_t>
+        inline void debugCheckCrossProduct(
+            [[maybe_unused]] const Tensor_t& tensor_A,
+            [[maybe_unused]] const Tensor_t& tensor_B
+        ) {
+        #ifdef DEBUG
+            debugCheckSizes(tensor_A, tensor_B);
+            if( tensor_A.rank() != 1 || tensor_B.rank() != 1 ) {
+                throw std::invalid_argument(
+                    "Cross product cannot be performed on non-vectors"
+                );  
+            }
+
+            const size_t size_A = tensor_A.size();
+            const size_t size_B = tensor_B.size();
+            if( size_A != 3  ||  size_B != 3 ) {
+                throw std::invalid_argument(
+                    "Cross product cannot be performed between vectors of length " +
+                    std::to_string(size_A) + " and length " + std::to_string(size_B)
+                );  
+            }
+        #endif
+        }
+
+        /**
+         * Checks that `tensor_A` and `tensor_B` can have a matrix multiplication
+         * performed between them.
+         */
+        template<typename Tensor_t1, typename Tensor_t2>
+        inline void debugCheckMatrixMult(
+            [[maybe_unused]] const Tensor_t1& tensor_A,
+            [[maybe_unused]] const Tensor_t2& tensor_B
+        ) {
+        #ifdef DEBUG
+            if( tensor_A.rank() > 2 || tensor_B.rank() > 2 ) {
+                throw std::invalid_argument(
+                    "Matrix multiplication cannot be performed on non-matrices"
+                );  
+            }
+
+            size_t size_dim1_A = tensor_A.size(0);
+            size_t size_dim2_A = (tensor_A.rank() == 2) ? tensor_A.size(1) : 1;
+            size_t size_dim1_B =  tensor_B.size(0);
+            size_t size_dim2_B = (tensor_B.rank() == 2) ? tensor_B.size(1) : 1;
+            if( size_dim2_A != size_dim1_B ) {
+                throw std::invalid_argument(
+                    "Matrix multiplication cannot be performed between matrices"
+                    " of size (" + std::to_string(size_dim1_A) + "x" + 
+                    std::to_string(size_dim2_A) + ")"
+                    " and size (" + std::to_string(size_dim1_B) + "x" + 
+                    std::to_string(size_dim2_B) + ")"
+                );  
+            }
+        #endif
+        }
+
+        /**
+         * Checks a determinant is defined for `tensor`.
+         */
+        template<typename Tensor_t>
+        inline void debugCheckDeterminant(
+            [[maybe_unused]] const Tensor_t& tensor
+        ) {
+        #ifdef DEBUG
+            if( tensor.rank() != 2 ) {
+                throw std::invalid_argument(
+                    "The determinant is not defined for non matrices"
+                );  
+            }
+
+            size_t size_dim1 = tensor.size(0);
+            size_t size_dim2 =  tensor.size(1);
+            if( size_dim1 != size_dim2 ) {
+                throw std::invalid_argument(
+                    "The determinant is not defined for " + std::to_string(size_dim1) +
+                    " by " + std::to_string(size_dim2) + " matrices"
+                );  
+            }
+        #endif
+        }
+    }
+    
+
     /* Implementation Helper Functions For Bulk Operations */
 
     namespace {
@@ -988,17 +1155,23 @@ namespace jai {
     template<size_t RANK>
     const float& BaseTensor<RANK>::operator [] ( const size_t index ) const 
     requires (RANK == 1) {
+        debugCheckBound(*this, index);
+
         return this->data_[index];
     }
     
     template<size_t RANK>
     float& BaseTensor<RANK>::operator [] ( const size_t index ) 
     requires (RANK == 1) {
+        debugCheckBound(*this, index);
+
         return this->data_[index];
     }
     
     template<size_t RANK>
     const float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
+        debugCheckBound(*this, indexes);
+
         size_t index = 0;
         size_t inner_tensor_size = 1;
         for( size_t i = 0; i < RANK; ++i ) {
@@ -1010,18 +1183,17 @@ namespace jai {
     
     template<size_t RANK>
     float& BaseTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
-        size_t index = 0;
-        size_t inner_tensor_size = 1;
-        for( size_t i = 0; i < RANK; ++i ) {
-            index += inner_tensor_size * indexes[RANK - i - 1];
-            inner_tensor_size *= this->dimensions[RANK - i - 1];
-        }
-        return this->data_[index];
+        // Get value from const version of this function
+        const BaseTensor<RANK>* const_this = static_cast<const BaseTensor<RANK>*>(this);
+        const float& const_val = const_this->operator[](indexes);
+        return const_cast<float&>(const_val);
     }
     
     template<size_t RANK>
     const VTensor<RANK-1> BaseTensor<RANK>::operator [] ( const size_t index ) const 
     requires (RANK > 1) {
+        debugCheckBound(*this, index);
+
         VTensor<RANK-1> inner_view;
         for( size_t i = 0; i < RANK-1; ++i ) {
             inner_view.dimensions[i] = this->dimensions[i+1];
@@ -1035,14 +1207,10 @@ namespace jai {
     template<size_t RANK>
     VTensor<RANK-1> BaseTensor<RANK>::operator [] ( const size_t index ) 
     requires (RANK > 1) {
-        VTensor<RANK-1> inner_view;
-        for( size_t i = 0; i < RANK-1; ++i ) {
-            inner_view.dimensions[i] = this->dimensions[i+1];
-        }
-        const size_t inner_tensor_total_size = this->total_size / this->dimensions[0];
-        inner_view.total_size = inner_tensor_total_size;
-        inner_view.data_ = this->data_ + inner_tensor_total_size*index;
-        return inner_view;
+        // Get value from const version of this function
+        const BaseTensor<RANK>* const_this = static_cast<const BaseTensor<RANK>*>(this);
+        const VTensor<RANK-1>& const_val = const_this->operator[](index);
+        return const_cast<VTensor<RANK-1>&>(const_val);
     }
  
     template<size_t RANK>
@@ -1110,6 +1278,8 @@ namespace jai {
 
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator + ( const BaseTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         Tensor<RANK> result = this->emptied();
         // Add the values in the Tensors together
         addValues(this->data_, other.data_, result.data_, this->total_size);
@@ -1119,6 +1289,8 @@ namespace jai {
     
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator - ( const BaseTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         Tensor<RANK> result = this->emptied();
         // Subtract the values in this Tensor by the values in the other Tensor
         subtractValues(this->data_, other.data_, result.data_, this->total_size);
@@ -1128,6 +1300,8 @@ namespace jai {
     
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator * ( const BaseTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         Tensor<RANK> result = this->emptied();
         // Multiply the values in the Tensors together
         multiplyValues(this->data_, other.data_, result.data_, this->total_size);
@@ -1137,6 +1311,8 @@ namespace jai {
     
     template<size_t RANK>
     Tensor<RANK> BaseTensor<RANK>::operator / ( const BaseTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         Tensor<RANK> result = this->emptied();
         // Divide the values in this Tensor by the values in the other Tensor
         divideValues(this->data_, other.data_, result.data_, this->total_size);
@@ -1213,6 +1389,8 @@ namespace jai {
 
     template<size_t RANK>
     BaseTensor<RANK>& BaseTensor<RANK>::operator += ( const BaseTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Add other's values
         addValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -1227,6 +1405,8 @@ namespace jai {
     
     template<size_t RANK>
     BaseTensor<RANK>& BaseTensor<RANK>::operator *= ( const BaseTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Multiply other's values
         multiplyValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -1234,6 +1414,8 @@ namespace jai {
     
     template<size_t RANK>
     BaseTensor<RANK>& BaseTensor<RANK>::operator /= ( const BaseTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Divide other's values
         divideValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -1260,8 +1442,10 @@ namespace jai {
     }
     
     template<size_t RANK>
-    BaseTensor<RANK>& BaseTensor<RANK>::set( const BaseTensor<RANK>& tensor ) {
-        setValues(tensor.data_, this->data_, this->total_size);
+    BaseTensor<RANK>& BaseTensor<RANK>::set( const BaseTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
+        setValues(other.data_, this->data_, this->total_size);
         return *this;
     }
     
@@ -1410,6 +1594,8 @@ namespace jai {
     template<size_t RANK>
     float BaseTensor<RANK>::dot( const BaseTensor<1>& other ) const 
     requires (RANK == 1) {
+        debugCheckSizes(*this, other);
+
         float sum = 0;
         for( size_t i = 0; i < this->total_size; ++i ) {
             sum += this->data_[i] * other.data_[i];
@@ -1420,6 +1606,8 @@ namespace jai {
     template<size_t RANK>
     Tensor<1> BaseTensor<RANK>::cross( const BaseTensor<1>& other ) const 
     requires (RANK == 1) {
+        debugCheckCrossProduct(*this, other);
+
         Tensor<1> result(3);
         result[0] = this[1] * other[2] - this[2] * other[1];
         result[1] = this[2] * other[0] - this[0] * other[2];
@@ -1460,6 +1648,8 @@ namespace jai {
     template<size_t RANK>
     Tensor<2> BaseTensor<RANK>::mul( const BaseTensor<2>& other ) const 
     requires (RANK == 2) {
+        debugCheckMatrixMult(*this, other);
+
         // Create result Tensor
         Tensor<2> result({this->dimensions[0], other.dimensions[1]});
         // Perform matrix multiplication
@@ -1478,6 +1668,8 @@ namespace jai {
     template<size_t RANK>
     Tensor<1> BaseTensor<RANK>::mul( const BaseTensor<1>& other ) const 
     requires (RANK == 2) {
+        debugCheckMatrixMult(*this, other);
+
         // Create result Tensor
         Tensor<1> result(this->dimensions[0]);
         // Perform matrix multiplication
@@ -1494,6 +1686,8 @@ namespace jai {
     template<size_t RANK>
     Tensor<2> BaseTensor<RANK>::mul( const BaseTensor<2>& other ) const 
     requires (RANK == 1) {
+        debugCheckMatrixMult(*this, other);
+
         // Create result Tensor
         Tensor<2> result({this->dimensions[0], other.dimensions[1]});
         // Perform matrix multiplication
@@ -1508,6 +1702,8 @@ namespace jai {
     template<size_t RANK>
     float BaseTensor<RANK>::determinant() const 
     requires (RANK == 2) {
+        debugCheckDeterminant(*this);
+
         const size_t size = this->dimensions[0];
         if( size == 2 ) {
             return this->data_[0] * this->data_[3] - this->data_[1] * this->data_[2];
@@ -1580,7 +1776,7 @@ namespace jai {
     }
 
     template<size_t RANK>
-    size_t BaseTensor<RANK>::rank() const {
+    constexpr size_t BaseTensor<RANK>::rank() const {
         return RANK;
     }
     
@@ -1595,14 +1791,15 @@ namespace jai {
     }
     
     template<size_t RANK>
-    size_t BaseTensor<RANK>::size() const 
-    requires (RANK == 1) {
+    size_t BaseTensor<RANK>::size() const {
         return this->total_size;
     }
     
     template<size_t RANK>
-    size_t BaseTensor<RANK>::size( const size_t dimension ) const {
-        return this->dimensions[dimension];
+    size_t BaseTensor<RANK>::size( const size_t dim_index ) const {
+        debugCheckDimensionsBound(*this, dim_index);
+
+        return this->dimensions[dim_index];
     }
 
     template<size_t RANK>
@@ -1709,25 +1906,15 @@ namespace jai {
     
     template<size_t RANK>
     Tensor<RANK>::Tensor( const size_t dim, const float fill ) 
-    requires (RANK == 1) {
-        if( dim == 0 ) {
-            throw std::invalid_argument("The dimension size is less than 1.");
-        }
-        this->dimensions[0] = dim;
-        this->total_size = dim;
-        this->data_ = new float[dim];
+    requires (RANK == 1) 
+    : Tensor(dim) {
         fillValues(fill, this->data_, this->total_size);
     }
     
     template<size_t RANK>
     Tensor<RANK>::Tensor( size_t dim, const float fill[] )
-    requires (RANK == 1) {
-        if( dim == 0 ) {
-            throw std::invalid_argument("The dimension size is less than 1.");
-        }
-        this->dimensions[0] = dim;
-        this->total_size = dim;
-        this->data_ = new float[dim];
+    requires (RANK == 1) 
+    : Tensor(dim) {
         setValues(fill, this->data_, dim);
     }
     
@@ -1749,20 +1936,8 @@ namespace jai {
     }
     
     template<size_t RANK>
-    Tensor<RANK>::Tensor( const size_t (&dims)[RANK], const float fill ) {
-        // Copy dimensions
-        size_t total_size = 1;
-        for( size_t i = 0; i < RANK; ++i ) {
-            this->dimensions[i] = dims[i];
-            total_size *= dims[i];
-            // Check if the size of this dimension is 0
-            if( dims[i] < 1 ) {
-                throw std::invalid_argument("One or more dimension sizes are less than 1.");
-            }
-        }
-        // Allocate memory for data and fill with value
-        this->total_size = total_size;
-        this->data_ = new float[total_size];
+    Tensor<RANK>::Tensor( const size_t (&dims)[RANK], const float fill ) 
+    : Tensor(dims) {
         fillValues(fill, this->data_, this->total_size);
     }
     
@@ -1825,16 +2000,9 @@ namespace jai {
     }
 
     template<size_t RANK>
-    Tensor<RANK>::Tensor( const Tensor<RANK>& other ) {
-        // Copy dimensions
-        for( size_t i = 0; i < RANK; ++i ) {
-            this->dimensions[i] = other.dimensions[i];
-        }
-        // Allocate new memory and copy it over
-        this->total_size = other.total_size;
-        this->data_ = new float[other.total_size];
-        setValues(other.data_, this->data_, this->total_size);
-    }
+    Tensor<RANK>::Tensor( const std::vector<float>& vec )
+    requires (RANK == 1) 
+    : Tensor<1>(vec.size(), vec.data()) { }
     
     template<size_t RANK>
     Tensor<RANK>::Tensor( const BaseTensor<RANK>& other ) {
@@ -1847,6 +2015,10 @@ namespace jai {
         this->data_ = new float[other.total_size];
         setValues(other.data_, this->data_, this->total_size);
     }
+
+    template<size_t RANK>
+    Tensor<RANK>::Tensor( const Tensor<RANK>& other )
+    : Tensor((const BaseTensor<RANK>&) other) { }
     
     template<size_t RANK>
     Tensor<RANK>::Tensor( Tensor<RANK>&& other ) {
@@ -1872,29 +2044,6 @@ namespace jai {
     }
     
     template<size_t RANK>
-    Tensor<RANK>& Tensor<RANK>::operator = ( const Tensor<RANK>& other ) {
-        // Check for self assignment
-        if( this == &other ) {
-            return *this;
-        }
-
-        // Copy dimensions
-        for( size_t i = 0; i < RANK; ++i ) {
-            this->dimensions[i] = other.dimensions[i];
-        }
-        // Free the previous data held in this Tensor, if a different size
-        if( this->total_size != other.total_size ) {
-            delete[] this->data_;
-            this->data_ = new float[other.total_size];
-            this->total_size = other.total_size;
-        }
-        // Copy over data
-        setValues(other.data_, this->data_, this->total_size);
-
-        return *this;
-    }
-    
-    template<size_t RANK>
     Tensor<RANK>& Tensor<RANK>::operator = ( const BaseTensor<RANK>& other ) {
         // Check for self assignment
         if( this == &other ) {
@@ -1915,6 +2064,11 @@ namespace jai {
         setValues(other.data_, this->data_, this->total_size);
 
         return *this;
+    }
+
+    template<size_t RANK>
+    Tensor<RANK>& Tensor<RANK>::operator = ( const Tensor<RANK>& other ) {
+        this->operator=((const BaseTensor<RANK>&) other);
     }
     
     template<size_t RANK>
@@ -2342,26 +2496,36 @@ namespace jai {
     
     template<size_t RANK>
     const float& RaggedTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) const {
+        debugCheckBound(*this, indexes);
+
         return this->inner_tensors[indexes[0]][tail(indexes)];
     }
     
     template<size_t RANK>
     float& RaggedTensor<RANK>::operator [] ( const size_t (&indexes)[RANK] ) {
+        debugCheckBound(*this, indexes);
+
         return this->inner_tensors[indexes[0]][tail(indexes)];
     }
     
     template<size_t RANK>
     const VTensor<RANK-1> RaggedTensor<RANK>::operator [] ( size_t index ) const {
+        debugCheckBound(*this, index);
+
         return this->inner_tensors[index];
     }
     
     template<size_t RANK>
     VTensor<RANK-1> RaggedTensor<RANK>::operator [] ( size_t index ) {
+        debugCheckBound(*this, index);
+        
         return this->inner_tensors[index];
     }
 
     template<size_t RANK>
     RaggedTensor<RANK> RaggedTensor<RANK>::operator + ( const RaggedTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         RaggedTensor<RANK> result = this->emptied();
         // Add the values in the Tensors together
         addValues(this->data_, other.data_, result.data_, this->total_size);
@@ -2371,6 +2535,8 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK> RaggedTensor<RANK>::operator - ( const RaggedTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         RaggedTensor<RANK> result = this->emptied();
         // Subtract the values in this Tensor by the values in the other Tensor
         subtractValues(this->data_, other.data_, result.data_, this->total_size);
@@ -2380,6 +2546,8 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK> RaggedTensor<RANK>::operator * ( const RaggedTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         RaggedTensor<RANK> result = this->emptied();
         // Multiply the values in the Tensors together
         multiplyValues(this->data_, other.data_, result.data_, this->total_size);
@@ -2389,6 +2557,8 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK> RaggedTensor<RANK>::operator / ( const RaggedTensor<RANK>& other ) const {
+        debugCheckSizes(*this, other);
+
         RaggedTensor<RANK> result = this->emptied();
         // Divide the values in this Tensor by the values in the other Tensor
         divideValues(this->data_, other.data_, result.data_, this->total_size);
@@ -2475,6 +2645,8 @@ namespace jai {
 
     template<size_t RANK>
     RaggedTensor<RANK>& RaggedTensor<RANK>::operator += ( const RaggedTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Add other's values
         addValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -2482,6 +2654,8 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK>& RaggedTensor<RANK>::operator -= ( const RaggedTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Subtract other's values
         subtractValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -2489,6 +2663,8 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK>& RaggedTensor<RANK>::operator *= ( const RaggedTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Add other's values
         multiplyValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -2496,6 +2672,8 @@ namespace jai {
     
     template<size_t RANK>
     RaggedTensor<RANK>& RaggedTensor<RANK>::operator /= ( const RaggedTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
         // Subtract other's values
         divideValues(this->data_, other.data_, this->data_, this->total_size);
         return *this;
@@ -2522,8 +2700,10 @@ namespace jai {
     }
     
     template<size_t RANK>
-    RaggedTensor<RANK>& RaggedTensor<RANK>::set( const RaggedTensor<RANK>& tensor ) {
-        setValues(tensor.data_, this->data_, this->total_size);
+    RaggedTensor<RANK>& RaggedTensor<RANK>::set( const RaggedTensor<RANK>& other ) {
+        debugCheckSizes(*this, other);
+
+        setValues(other.data_, this->data_, this->total_size);
         return *this;
     }
     
@@ -2568,7 +2748,7 @@ namespace jai {
     }
 
     template<size_t RANK>
-    size_t RaggedTensor<RANK>::rank() const {
+    constexpr size_t RaggedTensor<RANK>::rank() const {
         return RANK;
     }
     
@@ -2578,7 +2758,7 @@ namespace jai {
     }
     
     template<size_t RANK>
-    size_t RaggedTensor<RANK>::dim1Size() const {
+    size_t RaggedTensor<RANK>::size() const {
         return this->dimension1;
     }
     

@@ -3,9 +3,9 @@
 /*
  * Test of different parts of NeuralNetwork.hpp.
  *
- * g++ -std=c++20 -g -Wextra -Wall nn_test.cpp -o nn_test.exe
+ * g++ -std=c++20 -g -Wextra -Wall -D DEBUG nn_test.cpp -o nn_test.exe
  * nn_test.exe
- * g++ -std=c++20 -g -Wextra -Wall nn_test.cpp -o nn_test.out
+ * g++ -std=c++20 -g -Wextra -Wall -D DEBUG nn_test.cpp -o nn_test.out
  * ./nn_test.out
  */
 
@@ -15,19 +15,6 @@
 #include "../unit_test.hpp"
 #include <random>
 #include <ctime>
-
-
-
-const float _EPSILON = 1e-5;
-const int INPUT_COUNT = 2;
-const int OUTPUT_COUNT = 2;
-
-
-
-// Get random value within range
-inline float randomRange(const float min = 0, const float max = 1){
-    return ((double) std::rand() / RAND_MAX)*(max-min) + min;
-}
 
 
 
@@ -180,7 +167,7 @@ void test_layer_activation() {
  * Runs tests on each LossFunction to verify correctness
  */
 void test_loss_function() {
-    START_TESTING("LayerActivation")
+    START_TESTING("LossFunction")
 
     
     /* TODO: Tests for LossFunction */
@@ -430,12 +417,12 @@ void test_neural_network() {
     } END_UNIT_TEST
 
 
-    UNIT_TEST("Larger Number Training With DataStream") {
+    UNIT_TEST("Larger Number Training with DataStream") {
 
         // Create data stream to retrieve two random numbers, and
         // whether or not one is larger than the other
-        const long DATA_SEED = 100;
-        const size_t MAX_DATAPOINTS = 10000;
+        const long DATA_SEED = 991;
+        const size_t MAX_DATAPOINTS = 100;
         class RandomNumberDataStream : public jai::SimpleDataStream {
             bool retrieveDatapoint( 
                 jai::BaseVector& training_input,
@@ -446,114 +433,77 @@ void test_neural_network() {
 
                 if( training_input[0] < training_input[1] ) {
                     training_expected_output[0] = 0;
+                    training_expected_output[1] = 1;
                 } else {
-                    training_expected_output[0] = 1;
+                    training_expected_output[0] = 0;
+                    training_expected_output[1] = 1;
                 }
 
                 return (++datapoints_retrieved) < MAX_DATAPOINTS;
+            }
+
+            void reset() override {
+                datapoints_retrieved = 0;
             }
             
             size_t inputSize() const override {
                 return 2;
             }
             size_t outputSize() const override {
-                return 1;
+                return 2;
             }
 
             private:
             std::mt19937 rd_gen = std::mt19937(DATA_SEED);
-            std::uniform_real_distribution<float> dst = std::uniform_real_distribution(-100.0f, 100.0f);
+            std::uniform_real_distribution<float> dst = std::uniform_real_distribution(-10.0f, 10.0f);
             size_t datapoints_retrieved = 0;
         };
 
+        RandomNumberDataStream data_stream;
+
+        jai::NeuralNetwork ln_nn(
+            2,
+            2,
+            2,
+            1,
+            jai::ReLUActivation(), 
+            jai::SoftmaxLayerActivation()
+        );
+        ln_nn.kaimingInit(992);
+        
+        jai::NeuralNetwork::Hyperparameters hp;
+        hp.max_epochs = 500;
+        hp.regularization_strength = 0;
+        hp.momentum_decay = 0;
+        hp.sqr_momentum_decay = 0;
+
+        ln_nn.train(
+            data_stream,
+            jai::CrossEntropyLossFunction(),
+            hp,
+            993
+        );
+
+        jai::Vector out;
+        out = ln_nn.propagate(jai::Vector({0, 1}));
+        test_true( out[0] < out[1] );
+
+        out = ln_nn.propagate(jai::Vector({1, 0}));
+        test_true( out[1] < out[0] );
+
+        out = ln_nn.propagate(jai::Vector({-1, 1}));
+        test_true( out[0] < out[1] );
+
+        out = ln_nn.propagate(jai::Vector({1, -1}));
+        test_true( out[1] < out[0] );
+
+        out = ln_nn.propagate(jai::Vector({-5, 8}));
+        test_true( out[0] < out[1] );
+
+        out = ln_nn.propagate(jai::Vector({10, 3}));
+        test_true( out[1] < out[0] );
 
     } END_UNIT_TEST
-
-
-    // Get input arguments
-    //int c = 100;
-    //int hidden_layer_size = 2;
-    //int hidden_layer_count = 3;
-    //float learning_rate = 0.01f;
-    //if(argc > 1){
-    //    c = std::stoi(argv[1]);
-    //    if(argc > 3){
-    //        hidden_layer_size = std::stoi(argv[2]);
-    //        hidden_layer_count = std::stoi(argv[3]);
-    //
-    //        if(argc > 4){
-    //            learning_rate = std::stof(argv[4]);
-    //        }
-    //    }
-    //}
-
-        /*
-    // Initialize network
-    jai::NeuralNetwork network( INPUT_COUNT, OUTPUT_COUNT, hidden_layer_size, hidden_layer_count,
-                                jai::ELUActivation(), 
-                                jai::SoftmaxLayerActivation());
-                                //jai::UniformLayerActivation(jai::SigmoidActivation()));
-    network.kaimingInit();
-    const jai::LossFunction sqrd_diff = jai::SQUARED_DIFF(INPUT_COUNT);
-
-
-    // Train network for a fixed number of steps
-    std::cout << "Start Training: " << c << " datapoints\n";
-    float total_loss = 0;
-    std::srand(std::time(0));
-    for(int i = 0; i < c; i++){
-        // Get two random numbers
-        float in[INPUT_COUNT];
-        in[0] = randomRange(-10, 10);
-        in[1] = randomRange(-10, 10);
-        const bool lessThan = in[0] < in[1];
-        
-        // Determine actual output values (1 for larger number, 0 for smaller number)
-        float actual_values[OUTPUT_COUNT];
-        actual_values[0] = !lessThan ?  1 : 0;
-        actual_values[1] =  lessThan ?  1 : 0;
-        
-        // Train network
-        float loss = network.train(in, actual_values, sqrd_diff, learning_rate);
-        total_loss += loss;
-    }
-
-    // Display average loss
-    const double avg_loss = (double)(total_loss/c);
-    std::cout << "Done Training: " << avg_loss << "\n\n";
-
-
-    // Test finished network
-    std::cout << "Start Testing: " << c << " datapoints\n";
-    int err_c = 0;
-    std::srand(std::time(0));
-    for(int i = 0; i < c; i++){
-        // Get two random numbers
-        float in[INPUT_COUNT];
-        in[0] = randomRange(-10, 10);
-        in[1] = randomRange(-10, 10);
-        const bool lessThan = in[0] < in[1];
-
-        float out[OUTPUT_COUNT];
-        network.propagate(in, out);
-        
-        // Determine actual output values (1 for larger number, 0 for smaller number)
-        float actual_values[OUTPUT_COUNT];
-        actual_values[0] = !lessThan ?  1 : 0;
-        actual_values[1] =  lessThan ?  1 : 0;
-        
-        // Count the number of errors
-        if(lessThan != (out[0] < out[1]))
-            err_c++;
-    }
-
-    // Display number of errors
-    std::cout << "Done Testing: " << err_c << " errors\n";
-    std::cout << (double)err_c/c*100 << "% wrong\n\n";
-
-    // Print network, if desired
-    //std::cout << network << '\n';
-    */
 
 
     END_TESTING
@@ -567,6 +517,8 @@ int main() {
     test_activation();
 
     test_layer_activation();
+
+    test_loss_function();
 
     test_neural_network();
 
