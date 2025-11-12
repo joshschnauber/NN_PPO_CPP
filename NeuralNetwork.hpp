@@ -393,6 +393,17 @@ namespace jai {
         std::unique_ptr<SimpleLossFunction> clone() const override;
         bool isValidLayerSize( size_t layer_size ) const override;
     };
+    /**
+     * Binary cross entropy loss function.
+     * The inputs are expected to each be probabilities.
+     */
+    class BinaryCrossEntropyLossFunction : public SimpleLossFunction {
+        public:
+        float fn( const BaseVector& x, const BaseVector& expected_x ) const override;
+        void fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const override;
+        std::unique_ptr<SimpleLossFunction> clone() const override;
+        bool isValidLayerSize( size_t layer_size ) const override;
+    };
 
 
     /**
@@ -648,7 +659,8 @@ namespace jai {
             const BaseMatrix& training_inputs,
             const BaseMatrix& training_expected_outputs,
             const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
-            const Hyperparameters& training_hyperparameters = Hyperparameters()
+            const Hyperparameters& training_hyperparameters = Hyperparameters(),
+            const int seed = std::random_device()()
         );
         /**
          * Trains `this` NeuralNetwork using the the inputs and expected outputs from the
@@ -659,7 +671,8 @@ namespace jai {
         Vector train(
             SimpleDataStream& training_data_stream,
             const SimpleLossFunction& loss_function = SquaredDiffLossFunction(),
-            const Hyperparameters& training_hyperparameters = Hyperparameters()
+            const Hyperparameters& training_hyperparameters = Hyperparameters(),
+            const int seed = std::random_device()()
         );
 
         /** Helpers */
@@ -1124,15 +1137,41 @@ namespace jai {
         
         const size_t size = x.size();
         for( size_t i = 0; i < size; ++i ) {
-            float div = x[i];
-            if( div < EPSILON ) div = EPSILON;
-            y_D[i] = -expected_x[i] / x[i];
+            const float div = ( x[i] > EPSILON ) ? x[i] : EPSILON;
+            y_D[i] = -expected_x[i] / div;
         }
     }
     std::unique_ptr<SimpleLossFunction> CrossEntropyLossFunction::clone() const {
         return std::make_unique<CrossEntropyLossFunction>(CrossEntropyLossFunction());
     }
     bool CrossEntropyLossFunction::isValidLayerSize( size_t ) const {
+        return true;
+    }
+
+    float BinaryCrossEntropyLossFunction::fn( const BaseVector& x, const BaseVector& expected_x ) const {
+        const size_t size = x.size();
+        
+        float sum = 0;
+        for( size_t i = 0; i < size; ++i ) {
+            sum += expected_x[i] * std::log(x[i])  +  (1 - expected_x[i]) * std::log(1 - x[i]);
+        }
+
+        return -sum;
+    }
+    void BinaryCrossEntropyLossFunction::fn_D( const BaseVector& x, const BaseVector& expected_x, BaseVector& y_D ) const {
+        const float EPSILON = 0.01f;
+        
+        const size_t size = x.size();
+        for( size_t i = 0; i < size; ++i ) {
+            const float div1 = ( x[i] > EPSILON ) ? x[i] : EPSILON;
+            const float div2 = ( x[i] < 1 - EPSILON ) ? x[i] : 1 - EPSILON;
+            y_D[i] = -expected_x[i] / div1  +  (1 - expected_x[i]) / (1 - div2);
+        }
+    }
+    std::unique_ptr<SimpleLossFunction> BinaryCrossEntropyLossFunction::clone() const {
+        return std::make_unique<BinaryCrossEntropyLossFunction>(BinaryCrossEntropyLossFunction());
+    }
+    bool BinaryCrossEntropyLossFunction::isValidLayerSize( size_t ) const {
         return true;
     }
 
@@ -1428,9 +1467,6 @@ namespace jai {
                 // Assign delta_i, which assigns the gradient for this bias layer
                 delta_i
             );
-            std::cout << "\tx_i: " << x_i << "\n";
-            std::cout << "\tpost_D: " << post_D << "\n";
-            std::cout << "\tdelta_i: " << delta_i << "\n";
 
             // Calculate layer weight gradients
             const VVector y_i_mo = propagated_vals[(i + 1) - 1][1];
@@ -1516,7 +1552,8 @@ namespace jai {
         const BaseMatrix& training_inputs,
         const BaseMatrix& training_expected_outputs,
         const SimpleLossFunction& loss_function,
-        const Hyperparameters& training_hyperparameters
+        const Hyperparameters& training_hyperparameters,
+        const int seed
     ) {
         // Check that the size of the data is valid
         if( training_inputs.size(0) != training_expected_outputs.size(0) ) {
@@ -1556,18 +1593,13 @@ namespace jai {
             indexes[i] = i;
         }
         // Create random number generator to shuffle indexes
-        std::random_device rd;
-        std::mt19937 rd_gen(rd());
+        std::mt19937 rd_gen(seed);
 
         // Start training
         size_t epochs = 0;
         size_t policy_updates = 0;
         float error = NN_INFINITY;
         while( error >= hp.error_tolerance && epochs < hp.max_epochs ) {
-            std::cout << "epochs: " << epochs << "\n";
-            std::cout << "weights: " << this->weights << "\n";
-            std::cout << "bias: " << this->bias << "\n";
-
             // Shuffle indexes
             std::shuffle(indexes.begin(), indexes.end(), rd_gen);
 
@@ -1590,7 +1622,6 @@ namespace jai {
                     const size_t index = indexes[i];
                     // Propagate through network
                     VVector output = this->propagate(training_inputs[index], propagated_vals);
-                    //std::cout << "pv: " << propagated_vals << "\n";
                     // Calculate loss and loss_D
                     loss_sum += loss_function.fn(output, training_expected_outputs[index]);
                     loss_function.fn_D(output, training_expected_outputs[index], loss_D);
@@ -1602,8 +1633,6 @@ namespace jai {
                     ++i; ++j;
                 }
 
-                std::cout << "tbg1" << total_bias_gradients << "\n"; 
-
                 // Average gradients
                 total_weight_gradients /= j;
                 total_bias_gradients /= j;
@@ -1614,8 +1643,6 @@ namespace jai {
                     total_bias_gradients, 
                     hp.regularization_strength
                 );
-
-                std::cout << "tbg2" << total_bias_gradients << "\n"; 
 
                 // Apply momentums to gradients
                 updateAndApplyMomentums(
@@ -1632,7 +1659,7 @@ namespace jai {
                     policy_updates,
                     hp
                 );
-                std::cout << "tbg3" << total_bias_gradients << "\n"; 
+
                 // Update the network with the final gradients
                 this->updateNetwork(
                     total_weight_gradients * hp.learning_rate,
@@ -1642,7 +1669,6 @@ namespace jai {
                 // Save average loss for this batch
                 error = loss_sum / j;
                 losses.push_back(error);
-                std::cout << "error: " << error << "\n";
 
                 ++policy_updates;
             }
@@ -1657,7 +1683,8 @@ namespace jai {
     Vector NeuralNetwork::train(
         SimpleDataStream& training_data_stream,
         const SimpleLossFunction& loss_function,
-        const Hyperparameters& training_hyperparameters
+        const Hyperparameters& training_hyperparameters,
+        const int seed
     ) {
         // Check that the sizes of the inputs and outputs returned by the data stream match the network
         if( training_data_stream.inputSize() != this->input_layer_size ) {

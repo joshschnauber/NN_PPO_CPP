@@ -402,11 +402,9 @@ void test_neural_network() {
             jai::UniformLayerActivation(jai::SigmoidActivation())
         );
         xor_nn.kaimingInit(100);
-
-        std::cout << "NN0: " << xor_nn << "\n";
         
         jai::NeuralNetwork::Hyperparameters hp;
-        hp.max_epochs = 100;
+        hp.max_epochs = 500;
         hp.regularization_strength = 0;
         hp.momentum_decay = 0;
         hp.sqr_momentum_decay = 0;
@@ -417,20 +415,15 @@ void test_neural_network() {
         xor_nn.train(
             X,
             Y,
-            jai::CrossEntropyLossFunction(),
-            hp
+            jai::BinaryCrossEntropyLossFunction(),
+            hp,
+            200
         );
-
-        std::cout << "NN End: " << xor_nn << "\n";
 
         for( size_t i = 0; i < X.size(0); ++i ) {
             const float out = xor_nn.propagate(X[i])[0];
             const float y_p = (out > 0.5) ? 1 : 0;
 
-            std::cout << "in: " << X[i] << "\n";
-            std::cout << "out: " << out << "\n";
-            std::cout << "y_p: " << y_p << "\n";
-            std::cout << "actual: " << Y[i] << "\n";
             test_equals( y_p, Y[i][0] );
         }
 
