@@ -1194,21 +1194,25 @@ namespace jai {
         ) {
             // Check that the size of the data is valid
             if( training_inputs.size(0) != training_expected_outputs.size(0) ) {
-                throw std::invalid_argument("The number of training inputs must be the same as the number of training outputs");
+                throw std::invalid_argument("The number of training inputs must be the "
+                                            "same as the number of training outputs");
             }
             if( training_inputs.size(0) == 0 ) {
                 throw std::invalid_argument("There must be at least one data point");
             }
             // Check that the sizes of the given inputs and outputs match the network
             if( training_inputs.size(1) != nn.getInputLayerSize() ) {
-                throw std::invalid_argument("The given training inputs must the network input layer size");
+                throw std::invalid_argument("The given training inputs must match the network "
+                                            "input layer size");
             }
             if( training_expected_outputs.size(1) != nn.getOutputLayerSize() ) {
-                throw std::invalid_argument("The given training outputs must the network output layer size");
+                throw std::invalid_argument("The given training outputs must match the network "
+                                            "output layer size");
             }
             // Check that the loss function is the correct size
             if( !loss_function.isValidLayerSize(nn.getOutputLayerSize()) ) {
-                throw std::invalid_argument("The loss function input size must match the network output layer size");
+                throw std::invalid_argument("The loss function input size must match the network "
+                                            "output layer size");
             }
         }
 
@@ -1222,17 +1226,21 @@ namespace jai {
         ) {
             // Check that the sizes of the inputs and outputs returned by the data stream match the network
             if( training_data_stream.inputSize() != nn.getInputLayerSize() ) {
-                throw std::invalid_argument("The given inputs do not match the network input layer size");
+                throw std::invalid_argument("The given inputs do not match the network input "
+                                            "layer size");
             }
             if( training_data_stream.outputSize() != nn.getOutputLayerSize() ) {
-                throw std::invalid_argument("The given outputs do not match the network output layer size");
+                throw std::invalid_argument("The given outputs do not match the network output "
+                                            "layer size");
             }
             // Check that the loss function is the correct size
             if( !loss_function.isValidLayerSize(nn.getOutputLayerSize()) ) {
-                throw std::invalid_argument("The loss function input size does not match the network output layer size");
+                throw std::invalid_argument("The loss function input size must match the network "
+                                            "output layer size");
             }
         }
     }
+
 
     /* NeuralNetwork Helper Functions */
     
@@ -1605,7 +1613,7 @@ namespace jai {
         this->weights -= weight_gradients;
         this->bias -= bias_gradients;
     }
-    
+
     Vector NeuralNetwork::train( 
         const BaseMatrix& training_inputs,
         const BaseMatrix& training_expected_outputs,
@@ -1628,6 +1636,11 @@ namespace jai {
         RaggedTensor<3> weight_sqr_momentums = this->weights.emptied().fill(0);
         RaggedMatrix bias_momentums = this->bias.emptied().fill(0);
         RaggedMatrix bias_sqr_momentums = this->bias.emptied().fill(0);
+        // Create reused tensors
+        Vector loss_D(this->output_layer_size);
+        RaggedTensor<3> propagated_vals = this->getEmptyPropagationTensor();
+        RaggedTensor<3> weight_gradients = this->weights.emptied();
+        RaggedMatrix bias_gradients = this->bias.emptied();
 
         // Create vector with datapoint indexes
         std::vector<size_t> indexes(n);
@@ -1648,11 +1661,6 @@ namespace jai {
             // Iterate over each batch
             size_t i = 0;
             while( i < n ) {
-                // Create reused tensors
-                Vector loss_D(this->output_layer_size);
-                RaggedTensor<3> propagated_vals = this->getEmptyPropagationTensor();
-                RaggedTensor<3> weight_gradients = this->weights.emptied();
-                RaggedMatrix bias_gradients = this->bias.emptied();
                 // Create accumulating variables
                 float loss_sum = 0;
                 RaggedTensor<3> total_weight_gradients = this->weights.emptied().fill(0);
