@@ -1,6 +1,21 @@
 /* Tensor.hpp */
 
 /**
+ *  INFO:
+ *  - A tensor with a rank RANK can be thought of as a vector where each element is a
+ *    tensor of rank RANK-1, where a tensor of rank 1 is just a regular vector.
+ *  - Most of the time, Tensor and VTensor are what will be used.
+ *    Tensor and VTensor both inherit from BaseTensor, and they represent strictly 
+ *    rectangular tensors.
+ *  - A Tensor is a standard rectangular tensor, that owns and manages its own data.
+ *  - A VTensor is a view tensor, essentially a reference to a part or whole of another 
+ *    BaseTensor. A VTensor can reference another VTensor, but they are ultimately backed
+ *    by a Tensor. VTensors themselves are always rectangular tensors.
+ *  - A RaggedTensor is a Tensor where each inner tensor can be different sizes. Each of
+ *    those inner Tensor are themselves rectangular though.
+ */ 
+
+/**
  * TODO:
  * - Add optional template parameter for other types in Tensor (still float as default)
  * 
@@ -49,7 +64,7 @@
  *   mutators alter the Tensor instead of creating a new one.
  */
 
- 
+
 
 #include <cstddef>
 #include <cstring>
@@ -73,6 +88,47 @@
 
 /* Declaration */
 namespace jai {
+    /**
+     * Generic tensor iterator, for extracting the elements along the first dimension of
+     * any tensor.
+     * This class can be used for any type of Tensor, even RaggedTensors.
+     */
+    template<typename Tensor_t>
+    class TensorTypeIterator {
+        public: 
+
+        TensorTypeIterator( const Tensor_t& tensor, size_t index = 0 ) : 
+        tensor(const_cast<Tensor_t*>(&tensor)), index(index) { }
+
+        auto operator * () const { 
+            return (*this->tensor)[index]; 
+        }
+
+        TensorTypeIterator& operator ++ () {
+            ++index;
+            return *this;
+        }
+        TensorTypeIterator operator ++ (int) {
+            TensorTypeIterator temp = *this;
+            ++(*this);
+            return temp;
+        }
+
+        bool operator == ( const TensorTypeIterator& other ) const { 
+            return this->tensor == other.tensor  &&  this->index == other.index; 
+        }
+        bool operator != ( const TensorTypeIterator& other ) const { 
+            return !(*this == other); 
+        }
+
+        /* Member Variables */
+        private:
+
+        Tensor_t* tensor;
+        size_t index;
+    };
+
+
     /**
      * Helper structs to define a recursive type for initializing a Tensor with elements.
      */
@@ -113,7 +169,7 @@ namespace jai {
     class BaseTensor {
         // Ensure that Tensor RANK cannot be 0 (must have 1 or more dimensions)
         static_assert(RANK > 0, "Tensor rank cannot be 0.");
-
+        
         /* Constructors */
         protected:
 
@@ -157,6 +213,23 @@ namespace jai {
          */
         VTensor<RANK-1> operator [] ( size_t index )
         requires (RANK > 1);
+        /**
+         * This returns a View Tensor with rank RANK containing the elements in `this`
+         * Tensor from index `index_A`, inclusive, to index `index_B`, exclusive.
+         * `index_B` must be greater than `index_A`.
+         */
+        const VTensor<RANK> slice( size_t index_A, size_t index_B ) const;
+
+        /**
+         * This returns a TensorTypeIterator corresponding to the first element of the first
+         * dimension of `this` Tensor.
+         */
+        const TensorTypeIterator<BaseTensor<RANK>> begin() const;
+        /**
+         * This returns a TensorTypeIterator corresponding to one past the last element of
+         * the first dimension of `this` Tensor.
+         */
+        const TensorTypeIterator<BaseTensor<RANK>> end() const;
 
         /**
          * Returns an immutable View Tensor which is backed by `this` Tensor.
@@ -319,7 +392,14 @@ namespace jai {
         template<typename Func>
         BaseTensor<RANK>& transform( Func transform_function );
 
-        /* Vector operations */
+        /* Convienience Operations */
+
+        /**
+         * Finds the mean of the elements in this Tensor and returns the result.
+         */
+        float mean() const;
+
+        /* Vector Operations */
         public:
 
         /**
@@ -350,13 +430,7 @@ namespace jai {
         Tensor<1> cross( const BaseTensor<1>& other ) const
         requires (RANK == 1);
 
-        /**
-         * Finds the average of the elements in this Vector and returns the result.
-         */
-        float average() const
-        requires (RANK == 1);
-
-        /* Matrix operations */
+        /* Matrix Operations */
         public:
 
         /**
@@ -590,10 +664,17 @@ namespace jai {
         public:
 
         /**
+         * Creates a Vector of size `dim` with values evenly spaced between `min` and 
+         * `max`, such that `min` is the first element and `max` is the last.
+         * `min` must be less than or equal to `max`, and `step_size` must be greater 
+         * than 0.
+         */
+        static Tensor<1> range( size_t dim, float min, float max );
+        /**
          * Creates a square identity (`dims` x `dims`) matrix with the given
          * `diagonal_value`.
          */
-        static Tensor<2> identity( const size_t dims, const float diagonal_value = 1.0f );
+        static Tensor<2> identity( size_t dims, float diagonal_value = 1.0f );
     };
 
 
@@ -953,22 +1034,22 @@ namespace jai {
         inline void debugCheckBound( 
             [[maybe_unused]] const Tensor_t& tensor, 
             [[maybe_unused]] const size_t (&indexes)[RANK],
-            [[maybe_unused]] const size_t dim = 0
+            [[maybe_unused]] const size_t dim_index = 0
         ) {
         #ifdef DEBUG
-            const size_t index = indexes[dim];
+            const size_t index = indexes[dim_index];
             const size_t size = tensor.size();
         
             if( index >= size ) {
                 throw std::out_of_range(
                     "Index " + std::to_string(index) + 
-                    " is out of bounds in dimension " + std::to_string(dim) +
+                    " is out of bounds in dimension " + std::to_string(dim_index) +
                     " with size " + std::to_string(size)
                 );
             }
             
             if constexpr( tensor.rank() > 1 ) {
-                debugCheckBound(tensor[index], indexes, dim + 1);
+                debugCheckBound(tensor[index], indexes, dim_index + 1);
             }
         #endif
         }
@@ -1200,7 +1281,7 @@ namespace jai {
         }
         const size_t inner_tensor_total_size = this->total_size / this->dimensions[0];
         inner_view.total_size = inner_tensor_total_size;
-        inner_view.data_ = this->data_ + inner_tensor_total_size*index;
+        inner_view.data_ = this->data_ + (inner_tensor_total_size * index);
         return inner_view;
     }
     
@@ -1211,6 +1292,38 @@ namespace jai {
         const BaseTensor<RANK>* const_this = static_cast<const BaseTensor<RANK>*>(this);
         const VTensor<RANK-1>& const_val = const_this->operator[](index);
         return const_cast<VTensor<RANK-1>&>(const_val);
+    }
+
+    template<size_t RANK>
+    const VTensor<RANK> BaseTensor<RANK>::slice( const size_t index_A, const size_t index_B ) const {
+        debugCheckBound(*this, index_A);
+        debugCheckBound(*this, index_B - 1);
+        debugCheckBound(*this, index_B - 1 - index_A);
+
+        VTensor<RANK> slice_view;
+        // Set dimensions
+        const size_t slice_size = index_B - index_A;
+        slice_view.dimensions[0] = slice_size;
+        for( size_t i = 1; i < RANK; ++i ) {
+            slice_view.dimensions[i] = this->dimensions[i];
+        }
+        // Set total size
+        const size_t inner_tensor_total_size = this->total_size / this->dimensions[0];
+        slice_view.total_size = inner_tensor_total_size * slice_size;
+        // Set inner data
+        slice_view.data_ = this->data_ + (inner_tensor_total_size * index_A);
+        
+        return slice_view;
+    }
+
+    template<size_t RANK>
+    const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::begin() const {
+        return TensorTypeIterator<BaseTensor<RANK>>(*this, 0);
+    }
+
+    template<size_t RANK>
+    const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::end() const {
+        return TensorTypeIterator<BaseTensor<RANK>>(*this, this->dimensions[0]);
     }
  
     template<size_t RANK>
@@ -1616,8 +1729,7 @@ namespace jai {
     }
     
     template<size_t RANK>
-    float BaseTensor<RANK>::average() const
-    requires (RANK == 1) {
+    float BaseTensor<RANK>::mean() const {
         float sum = 0;
         for( size_t i = 0; i < this->total_size; ++i ) {
             sum += this->data_[i];
@@ -2098,6 +2210,18 @@ namespace jai {
         return *this;
     }
     
+    template<size_t RANK>
+    Tensor<1> Tensor<RANK>::range( const size_t dim, const float min, const float max ) {
+        Tensor<1> result(dim);
+        // Determine spacing
+        float range = max - min;
+        float step = range / (dim - 1);
+        for( size_t i = 0; i < dim; ++i ) {
+            result[i] = min + (step * i);
+        }
+        return result;
+    }
+
     template<size_t RANK>
     Tensor<2> Tensor<RANK>::identity( const size_t dims, const float diagonal_value ) {
         Tensor<2> result({dims, dims}, 0);

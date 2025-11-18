@@ -405,6 +405,44 @@ namespace jai {
         bool isValidLayerSize( size_t layer_size ) const override;
     };
 
+    /**
+     * 
+     */
+    class AugmentedLossFunction {
+        /**
+         * 
+         */
+        virtual float fn( const BaseVector& x, const size_t index ) const = 0;
+        /**
+         * 
+         */
+        virtual void fn_D( const BaseVector& x, const size_t index, BaseVector& y_D ) const = 0;
+        /**
+         * 
+         */
+        virtual std::unique_ptr<AugmentedLossFunction> clone() const = 0;
+        /**
+         * 
+         */
+        virtual bool isValidLayerSize( size_t layer_size ) const = 0;
+        /**
+         * 
+         */
+        bool verify( 
+            const size_t layer_size, const float min = -10.0f, const float max = 10.0f, 
+            const size_t test_count = 20, const int seed = 0
+        ) const;
+    };
+    /**
+     * 
+     */
+    class AugmentedSimpleLossFunction {
+        AugmentedSimpleLossFunction( 
+            const SimpleLossFunction& simple_loss_function,
+            const Tensor<2> expected_outputs
+        );
+    };
+
 
     /**
      * Abstract class for retreiving data for training a neural network over time.
@@ -678,6 +716,15 @@ namespace jai {
             const Hyperparameters& training_hyperparameters = Hyperparameters(),
             const int seed = std::random_device()()
         );
+        /**
+         * 
+         */
+        Vector train( 
+            const BaseMatrix& training_inputs,
+            const AugmentedLossFunction loss_function,
+            const Hyperparameters& training_hyperparameters = Hyperparameters(),
+            const int seed = std::random_device()()
+        );
 
         /** Helpers */
         public:
@@ -698,21 +745,21 @@ namespace jai {
         /**
          * Returns the size of the input layer.
          */
-        size_t getInputLayerSize() const;
+        size_t inputLayerSize() const;
         /**
          * Returns the size of the output layer.
          */
-        size_t getOutputLayerSize() const;
+        size_t outputLayerSize() const;
         /**
          * Returns the size of the layer at index `layer_index`, where the first layer is
          * the input layer, and the final layer is the output layer.
          */
-        size_t getLayerSize( const size_t layer_index ) const;
+        size_t layerSize( const size_t layer_index ) const;
         /**
          * Returns the number of layers in `this` NeuralNetwork, including
          * the input and output layers.
          */
-        size_t getLayerCount() const;
+        size_t layerCount() const;
         /**
          * Returns the weights in `this` NeuralNetwork
          */
@@ -1201,16 +1248,16 @@ namespace jai {
                 throw std::invalid_argument("There must be at least one data point");
             }
             // Check that the sizes of the given inputs and outputs match the network
-            if( training_inputs.size(1) != nn.getInputLayerSize() ) {
+            if( training_inputs.size(1) != nn.inputLayerSize() ) {
                 throw std::invalid_argument("The given training inputs must match the network "
                                             "input layer size");
             }
-            if( training_expected_outputs.size(1) != nn.getOutputLayerSize() ) {
+            if( training_expected_outputs.size(1) != nn.outputLayerSize() ) {
                 throw std::invalid_argument("The given training outputs must match the network "
                                             "output layer size");
             }
             // Check that the loss function is the correct size
-            if( !loss_function.isValidLayerSize(nn.getOutputLayerSize()) ) {
+            if( !loss_function.isValidLayerSize(nn.outputLayerSize()) ) {
                 throw std::invalid_argument("The loss function input size must match the network "
                                             "output layer size");
             }
@@ -1225,16 +1272,16 @@ namespace jai {
             const SimpleLossFunction& loss_function
         ) {
             // Check that the sizes of the inputs and outputs returned by the data stream match the network
-            if( training_data_stream.inputSize() != nn.getInputLayerSize() ) {
+            if( training_data_stream.inputSize() != nn.inputLayerSize() ) {
                 throw std::invalid_argument("The given inputs do not match the network input "
                                             "layer size");
             }
-            if( training_data_stream.outputSize() != nn.getOutputLayerSize() ) {
+            if( training_data_stream.outputSize() != nn.outputLayerSize() ) {
                 throw std::invalid_argument("The given outputs do not match the network output "
                                             "layer size");
             }
             // Check that the loss function is the correct size
-            if( !loss_function.isValidLayerSize(nn.getOutputLayerSize()) ) {
+            if( !loss_function.isValidLayerSize(nn.outputLayerSize()) ) {
                 throw std::invalid_argument("The loss function input size must match the network "
                                             "output layer size");
             }
@@ -1430,7 +1477,7 @@ namespace jai {
 
     Vector NeuralNetwork::propagate( const BaseVector& inputs ) const {
         Vector y = inputs;
-        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+        for( size_t i = 0; i < this->layerCount() - 1; ++i ) {
             // Propagate through network
             Vector propagated_x = this->weights[i].mul(y) + this->bias[i];
             // Apply activations
@@ -1465,7 +1512,7 @@ namespace jai {
         propagated_vals[0][1].set(inputs);
 
         VVector y = propagated_vals[0][1];
-        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+        for( size_t i = 0; i < this->layerCount() - 1; ++i ) {
             VMatrix layer_values = propagated_vals[i + 1];
             // Propagate through network
             VVector pre_activation = layer_values[0];
@@ -1510,7 +1557,7 @@ namespace jai {
         RaggedTensor<3>& weight_gradients,
         RaggedMatrix& bias_gradients
     ) const {
-        const size_t layer_count = this->getLayerCount();
+        const size_t layer_count = this->layerCount();
 
         // Calculate gradients for hidden layers
         for( size_t i_ = 0; i_ < layer_count - 1; ++i_ ) {
@@ -1560,7 +1607,7 @@ namespace jai {
         
         // Assign weights
         const float range = max - min;
-        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
+        for( size_t i = 0; i < this->layerCount() - 1; ++i ) {
             this->weights[i].transform(
                 [min, range, &dst, &rd_gen]() {
                     return (dst(rd_gen) * range) + min;
@@ -1576,8 +1623,8 @@ namespace jai {
         std::normal_distribution dst(0.0f, 1.0f);
 
         // Assign weights
-        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
-            const float bound = std::sqrt(2.0f / this->getLayerSize(i));
+        for( size_t i = 0; i < this->layerCount() - 1; ++i ) {
+            const float bound = std::sqrt(2.0f / this->layerSize(i));
             this->weights[i].transform(
                 [bound, &dst, &rd_gen]() {
                     return dst(rd_gen) * bound;
@@ -1593,8 +1640,8 @@ namespace jai {
         std::uniform_real_distribution dst(-1.0, 1.0);
 
         // Assign weights
-        for( size_t i = 0; i < this->getLayerCount() - 1; ++i ) {
-            const size_t layer_size_sum = this->getLayerSize(i) + this->getLayerSize(i + 1);
+        for( size_t i = 0; i < this->layerCount() - 1; ++i ) {
+            const size_t layer_size_sum = this->layerSize(i) + this->layerSize(i + 1);
             const float bound = 2.44948 / std::sqrt(layer_size_sum);
             this->weights[i].transform(
                 [bound, &dst, &rd_gen]() {
@@ -1744,21 +1791,21 @@ namespace jai {
     }
 
     
-    size_t NeuralNetwork::getInputLayerSize() const {
+    size_t NeuralNetwork::inputLayerSize() const {
         return this->input_layer_size;
     }
     
-    size_t NeuralNetwork::getOutputLayerSize() const {
+    size_t NeuralNetwork::outputLayerSize() const {
         return this->output_layer_size;
     }
     
-    size_t NeuralNetwork::getLayerSize( const size_t layer_index ) const {
+    size_t NeuralNetwork::layerSize( const size_t layer_index ) const {
         return (layer_index == 0) ?
                 this->input_layer_size :
                 this->bias[layer_index - 1].size();
     }
     
-    size_t NeuralNetwork::getLayerCount() const {
+    size_t NeuralNetwork::layerCount() const {
         return 1 + this->bias.size();
     }
     
@@ -1771,7 +1818,7 @@ namespace jai {
     }
     
     RaggedTensor<3> NeuralNetwork::getEmptyPropagationTensor() const {
-        const size_t layer_count = this->getLayerCount();
+        const size_t layer_count = this->layerCount();
         size_t inner_matrix_sizes[layer_count][2];
         // Set input layer size
         inner_matrix_sizes[0][0] = 2;
@@ -1788,9 +1835,9 @@ namespace jai {
     std::ostream& operator << ( std::ostream& fs, const NeuralNetwork& nn ) {
         fs << "{ ";
         // Display layer sizes
-        fs << "Layers: [" << nn.getLayerSize(0);
-        for( size_t i = 1; i < nn.getLayerCount(); i++ ) {
-            fs << ", " << nn.getLayerSize(i);
+        fs << "Layers: [" << nn.layerSize(0);
+        for( size_t i = 1; i < nn.layerCount(); i++ ) {
+            fs << ", " << nn.layerSize(i);
         }
         fs << "]";
         // Display weights and bias values

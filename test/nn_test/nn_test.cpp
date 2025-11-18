@@ -189,42 +189,42 @@ void test_neural_network() {
 
         jai::NeuralNetwork nn1({2, 3, 1});
 
-        test_equals( nn1.getInputLayerSize(), 2 );
-        test_equals( nn1.getOutputLayerSize(), 1 );
-        test_equals( nn1.getLayerCount(), 3 );
-        test_equals( nn1.getLayerSize(0), 2 );
-        test_equals( nn1.getLayerSize(1), 3 );
-        test_equals( nn1.getLayerSize(2), 1 );
+        test_equals( nn1.inputLayerSize(), 2 );
+        test_equals( nn1.outputLayerSize(), 1 );
+        test_equals( nn1.layerCount(), 3 );
+        test_equals( nn1.layerSize(0), 2 );
+        test_equals( nn1.layerSize(1), 3 );
+        test_equals( nn1.layerSize(2), 1 );
 
         jai::NeuralNetwork nn2({4, 5, 7, 3}, jai::SigmoidActivation(), jai::SoftmaxLayerActivation());
 
-        test_equals( nn2.getInputLayerSize(), 4 );
-        test_equals( nn2.getOutputLayerSize(), 3 );
-        test_equals( nn2.getLayerCount(), 4 );
-        test_equals( nn2.getLayerSize(0), 4 );
-        test_equals( nn2.getLayerSize(1), 5 );
-        test_equals( nn2.getLayerSize(2), 7 );
-        test_equals( nn2.getLayerSize(3), 3 );
+        test_equals( nn2.inputLayerSize(), 4 );
+        test_equals( nn2.outputLayerSize(), 3 );
+        test_equals( nn2.layerCount(), 4 );
+        test_equals( nn2.layerSize(0), 4 );
+        test_equals( nn2.layerSize(1), 5 );
+        test_equals( nn2.layerSize(2), 7 );
+        test_equals( nn2.layerSize(3), 3 );
 
         jai::NeuralNetwork nn3(2, 1, 4, 1);
 
-        test_equals( nn3.getInputLayerSize(), 2 );
-        test_equals( nn3.getOutputLayerSize(), 1 );
-        test_equals( nn3.getLayerCount(), 3 );
-        test_equals( nn3.getLayerSize(0), 2 );
-        test_equals( nn3.getLayerSize(1), 4 );
-        test_equals( nn3.getLayerSize(2), 1 );
+        test_equals( nn3.inputLayerSize(), 2 );
+        test_equals( nn3.outputLayerSize(), 1 );
+        test_equals( nn3.layerCount(), 3 );
+        test_equals( nn3.layerSize(0), 2 );
+        test_equals( nn3.layerSize(1), 4 );
+        test_equals( nn3.layerSize(2), 1 );
 
         jai::NeuralNetwork nn4(10, 5, 8, 3);
 
-        test_equals( nn4.getInputLayerSize(), 10 );
-        test_equals( nn4.getOutputLayerSize(), 5 );
-        test_equals( nn4.getLayerCount(), 5 );
-        test_equals( nn4.getLayerSize(0), 10 );
-        test_equals( nn4.getLayerSize(1), 8 );
-        test_equals( nn4.getLayerSize(2), 8 );
-        test_equals( nn4.getLayerSize(3), 8 );
-        test_equals( nn4.getLayerSize(4), 5 );
+        test_equals( nn4.inputLayerSize(), 10 );
+        test_equals( nn4.outputLayerSize(), 5 );
+        test_equals( nn4.layerCount(), 5 );
+        test_equals( nn4.layerSize(0), 10 );
+        test_equals( nn4.layerSize(1), 8 );
+        test_equals( nn4.layerSize(2), 8 );
+        test_equals( nn4.layerSize(3), 8 );
+        test_equals( nn4.layerSize(4), 5 );
 
     } END_UNIT_TEST
 
