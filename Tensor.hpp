@@ -61,8 +61,13 @@
  * - Add .copy() functions that returns a new Tensor, and make more non size changing
  *   mutators alter the Tensor instead of creating a new one.
  * 
- * - Remove constructors that have fill param. Maybe add fill method that accepts pointer
- *   as well
+ * - Remove constructors that have fill param, and replace them with the .fill() function.
+ *   The .fill() function needs to be able to return the a reference to the type of object
+ *   it is being called on however, and not always just a BaseTensor.  
+ * - Maybe add fill method that accepts a pointer as well.
+ * 
+ * - Add separate mutable and constant iterator
+ * - Add constant version of VTensor
  */
 
 
