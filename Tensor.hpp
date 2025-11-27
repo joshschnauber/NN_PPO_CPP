@@ -56,12 +56,13 @@
  * 
  * - Add .collapsed() function that collapses Tensors with rank RANK into Tensor with rank
  *   RANK-1, when RANK>1.
- * - Add iterator to allow enhanced iterate to iterate over rows of rank RANK-1, or just
- *   a float if RANK=1
  * - Add a function to fill the Tensor with random values
  * 
  * - Add .copy() functions that returns a new Tensor, and make more non size changing
  *   mutators alter the Tensor instead of creating a new one.
+ * 
+ * - Remove constructors that have fill param. Maybe add fill method that accepts pointer
+ *   as well
  */
 
 
@@ -814,6 +815,17 @@ namespace jai {
          */
         VTensor<RANK-1> operator [] ( size_t index );
 
+        /**
+         * This returns a TensorTypeIterator corresponding to the first element of the first
+         * dimension of `this` RaggedTensor.
+         */
+        const TensorTypeIterator<RaggedTensor<RANK>> begin() const;
+        /**
+         * This returns a TensorTypeIterator corresponding to one past the last element of
+         * the first dimension of `this` RaggedTensor.
+         */
+        const TensorTypeIterator<RaggedTensor<RANK>> end() const;
+
         /* Binary Operations */
         public:
 
@@ -1005,6 +1017,17 @@ namespace jai {
 
 /* Implementation */
 namespace jai {
+
+    /* Implementation Helper Functions for Handling Array References */
+    
+    namespace {
+        template <size_t N>
+        constexpr const size_t (&tail( const size_t (&array)[N] ))[N - 1] {
+            return *reinterpret_cast<const size_t (*)[N - 1]>(&array[1]);
+        }
+    }
+
+
     /* Error Checking */
 
     namespace {
@@ -1037,7 +1060,7 @@ namespace jai {
             [[maybe_unused]] const size_t dim_index = 0
         ) {
         #ifdef DEBUG
-            const size_t index = indexes[dim_index];
+            const size_t index = indexes[0];
             const size_t size = tensor.size();
         
             if( index >= size ) {
@@ -1048,8 +1071,8 @@ namespace jai {
                 );
             }
             
-            if constexpr( tensor.rank() > 1 ) {
-                debugCheckBound(tensor[index], indexes, dim_index + 1);
+            if constexpr( RANK > 1 ) {
+                debugCheckBound(tensor[index], tail(indexes), dim_index + 1);
             }
         #endif
         }
@@ -1323,7 +1346,7 @@ namespace jai {
 
     template<size_t RANK>
     const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::end() const {
-        return TensorTypeIterator<BaseTensor<RANK>>(*this, this->dimensions[0]);
+        return TensorTypeIterator<BaseTensor<RANK>>(*this, this->size());
     }
  
     template<size_t RANK>
@@ -1904,7 +1927,7 @@ namespace jai {
     
     template<size_t RANK>
     size_t BaseTensor<RANK>::size() const {
-        return this->total_size;
+        return this->dimensions[0];
     }
     
     template<size_t RANK>
@@ -2263,16 +2286,6 @@ namespace jai {
         this->data_ = other.data_;
 
         return *this;
-    }
-
-
-    /* Implementation Helper Functions for Handling Array References */
-    
-    namespace {
-        template <size_t N>
-        constexpr const size_t (&tail( const size_t (&array)[N] ))[N - 1] {
-            return *reinterpret_cast<const size_t (*)[N - 1]>(&array[1]);
-        }
     }
 
 
@@ -2646,6 +2659,16 @@ namespace jai {
         return this->inner_tensors[index];
     }
 
+    template<size_t RANK>
+    const TensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::begin() const {
+        return TensorTypeIterator<RaggedTensor<RANK>>(*this, 0);
+    }
+
+    template<size_t RANK>
+    const TensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::end() const {
+        return TensorTypeIterator<RaggedTensor<RANK>>(*this, this->size());
+    }
+ 
     template<size_t RANK>
     RaggedTensor<RANK> RaggedTensor<RANK>::operator + ( const RaggedTensor<RANK>& other ) const {
         debugCheckSizes(*this, other);
