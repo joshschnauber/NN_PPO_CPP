@@ -43,8 +43,9 @@
  *   functions
  *   Ideally any 'shape changing' operation that doesn't change the values in the
  *   Tensor should return a VTensor (i.e. .transpose()), but this may not be feasible.
+ * - Add constant version of VTensor
  * 
- * - Somehow connect Tensor and VTensor with RaggedTensor, so their overlapping 
+ * - Somehow 'connect' Tensor and VTensor with RaggedTensor, so their overlapping 
  *   functionality can be reused, and to get rid of the need for duplicated code.
  * 
  * - Make the size of Tensors completely unchangeable by only making the assignment
@@ -65,9 +66,6 @@
  *   The .fill() function needs to be able to return the a reference to the type of object
  *   it is being called on however, and not always just a BaseTensor.  
  * - Maybe add fill method that accepts a pointer as well.
- * 
- * - Add separate mutable and constant iterator
- * - Add constant version of VTensor
  */
 
 
