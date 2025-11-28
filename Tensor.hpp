@@ -95,68 +95,8 @@
 /* Declaration */
 namespace jai {
     /**
-     * Generic tensor iterator, for extracting the elements along the first dimension of
-     * any tensor.
-     * This class can be used for any type of Tensor, even RaggedTensors.
+     * Tensor Declarations 
      */
-    template<typename Tensor_t>
-    class TensorTypeIterator {
-        public: 
-
-        TensorTypeIterator( const Tensor_t& tensor, size_t index = 0 ) : 
-        tensor(const_cast<Tensor_t*>(&tensor)), index(index) { }
-
-        auto operator * () const { 
-            return (*this->tensor)[index]; 
-        }
-
-        TensorTypeIterator& operator ++ () {
-            ++index;
-            return *this;
-        }
-        TensorTypeIterator operator ++ (int) {
-            TensorTypeIterator temp = *this;
-            ++(*this);
-            return temp;
-        }
-
-        bool operator == ( const TensorTypeIterator& other ) const { 
-            return this->tensor == other.tensor  &&  this->index == other.index; 
-        }
-        bool operator != ( const TensorTypeIterator& other ) const { 
-            return !(*this == other); 
-        }
-
-        /* Member Variables */
-        private:
-
-        Tensor_t* tensor;
-        size_t index;
-    };
-
-
-    /**
-     * Helper structs to define a recursive type for initializing a Tensor with elements.
-     */
-    template <size_t RANK>
-    struct InitializerElementsType {
-        using type = std::initializer_list<typename InitializerElementsType<RANK - 1>::type>;
-    };
-    template <>
-    struct InitializerElementsType<1> {
-        using type = std::initializer_list<float>;
-    };
-    
-    /**
-     * Recursive type used to initialize a Tensor of rank `RANK` with elements.
-     * An InitializerElements<RANK> contains a set of InitializerElements<RANK-1>s,
-     * and an InitializerElements<1> contains a set of floats.
-     */
-    template <size_t RANK>
-    using InitializerElements = typename InitializerElementsType<RANK>::type;
-
-
-    /* Tensor Declarations */
     template<size_t RANK>
     class BaseTensor;
     template<size_t RANK>
@@ -168,6 +108,145 @@ namespace jai {
 
 
     /**
+     * Helper structs to define a type to represent the inner element of a Tensor.
+     */
+    namespace {
+        template <size_t RANK>
+        struct InnerElementType {
+            using type = VTensor<RANK-1>;
+        };
+        template <>
+        struct InnerElementType<1> {
+            using type = float&;
+        };
+
+        template <size_t RANK>
+        struct ConstantInnerElementType {
+            using type = const VTensor<RANK-1>;
+        };
+        template <>
+        struct ConstantInnerElementType<1> {
+            using type = const float&;
+        };
+    }
+    /**
+     * Type used to represent the inner element of a Tensor of rank `RANK`.
+     * An `InnerElement<RANK>` is a `VTensor<RANK-1>` if RANK>1,
+     * and is a `float&` if RANK=1.
+     */
+    template <size_t RANK>
+    using InnerElement = InnerElementType<RANK>::type;
+    /**
+     * Type used to represent the inner element of a constant Tensor of rank `RANK`.
+     * An `InnerElement<RANK>` is a `const VTensor<RANK-1>` if RANK>1,
+     * and is a `const float&` if RANK=1.
+     */
+    template <size_t RANK>
+    using ConstantInnerElement = ConstantInnerElementType<RANK>::type;
+
+
+    /**
+     * Base class for Tensor iterators
+     */
+    namespace {
+        template<typename Tensor_t>
+        class BaseIterator {
+            public:
+
+            BaseIterator( const Tensor_t& tensor, size_t index = 0 ) : 
+                tensor(const_cast<Tensor_t*>(&tensor)), 
+                index(index) 
+            { }
+
+            BaseIterator& operator ++ () {
+                ++this->index;
+                return *this;
+            }
+            BaseIterator operator ++ (int) {
+                BaseIterator temp = *this;
+                ++(*this);
+                return temp;
+            }
+
+            bool operator == ( const BaseIterator& other ) const { 
+                return this->tensor == other.tensor  &&  this->index == other.index; 
+            }
+            bool operator != ( const BaseIterator& other ) const { 
+                return !(*this == other); 
+            }
+
+
+            protected:
+
+            Tensor_t* tensor;
+            size_t index;
+        };
+    }
+    /**
+     * Tensor iterator.
+     * This class can be used for any type of Tensor, even RaggedTensors.
+     */
+    template<typename Tensor_t>
+    class TensorTypeIterator : public BaseIterator<Tensor_t> {
+        public:
+
+        TensorTypeIterator( const Tensor_t& tensor, size_t index = 0 ) : 
+            BaseIterator<Tensor_t>(tensor, index) 
+        { }
+        TensorTypeIterator( const TensorTypeIterator<Tensor_t>& other ) :
+            BaseIterator<Tensor_t>(other.tensor, other.index)
+        { }
+
+        InnerElement<Tensor_t::Rank>operator * () const { 
+            Tensor_t* non_const_ptr = const_cast<Tensor_t*>(this->tensor);
+            return (*non_const_ptr)[this->index];
+        }
+    };
+    /**
+     * Constant tensor iterator.
+     * This class can be used for any type of Tensor, even RaggedTensors.
+     */
+    template<typename Tensor_t>
+    class ConstantTensorTypeIterator : public BaseIterator<Tensor_t> {
+        public: 
+
+        ConstantTensorTypeIterator( const Tensor_t& tensor, size_t index = 0 ) : 
+            BaseIterator<Tensor_t>(tensor, index) 
+        { }
+        ConstantTensorTypeIterator( const BaseIterator<Tensor_t>& other ) :
+            BaseIterator<Tensor_t>(other.tensor, other.index) 
+        { }
+
+        ConstantInnerElement<Tensor_t::Rank> operator * () const {
+            const Tensor_t* const_ptr = const_cast<const Tensor_t*>(this->tensor);
+            return (*const_ptr)[this->index]; 
+        }        
+    };
+
+
+    /**
+     * Helper structs to recursively define a type for initializing a Tensor with elements.
+     */
+    namespace {
+        template <size_t RANK>
+        struct InitializerElementsType {
+            using type = std::initializer_list<typename InitializerElementsType<RANK - 1>::type>;
+        };
+        template <>
+        struct InitializerElementsType<1> {
+            using type = std::initializer_list<float>;
+        };
+    }
+    /**
+     * Type used to initialize a Tensor of rank `RANK` with elements.
+     * An `InitializerElements<RANK>` contains a set of `InitializerElements<RANK-1>`s,
+     * and an `InitializerElements<1>` contains a set of floats.
+     */
+    template <size_t RANK>
+    using InitializerElements = typename InitializerElementsType<RANK>::type;
+
+
+    /**
      * This defines the interface with a Tensor.
      * This is an abstract class that cannot be constructed on it's own.
      */
@@ -175,7 +254,12 @@ namespace jai {
     class BaseTensor {
         // Ensure that Tensor RANK cannot be 0 (must have 1 or more dimensions)
         static_assert(RANK > 0, "Tensor rank cannot be 0.");
-        
+
+        /* Member Types */
+        public:
+
+        static const size_t Rank = RANK;
+
         /* Constructors */
         protected:
 
@@ -227,15 +311,25 @@ namespace jai {
         const VTensor<RANK> slice( size_t index_A, size_t index_B ) const;
 
         /**
-         * This returns a TensorTypeIterator corresponding to the first element of the first
+         * This returns a constant iterator corresponding to the first element of the first
          * dimension of `this` Tensor.
          */
-        const TensorTypeIterator<BaseTensor<RANK>> begin() const;
+        const ConstantTensorTypeIterator<BaseTensor<RANK>> begin() const;
         /**
-         * This returns a TensorTypeIterator corresponding to one past the last element of
+         * This returns a constant iterator corresponding to one past the last element of
          * the first dimension of `this` Tensor.
          */
-        const TensorTypeIterator<BaseTensor<RANK>> end() const;
+        const ConstantTensorTypeIterator<BaseTensor<RANK>> end() const;
+        /**
+         * This returns a iterator corresponding to the first element of the first
+         * dimension of `this` Tensor.
+         */
+        const TensorTypeIterator<BaseTensor<RANK>> begin();
+        /**
+         * This returns a iterator corresponding to one past the last element of
+         * the first dimension of `this` Tensor.
+         */
+        const TensorTypeIterator<BaseTensor<RANK>> end();
 
         /**
          * Returns an immutable View Tensor which is backed by `this` Tensor.
@@ -719,6 +813,11 @@ namespace jai {
         // Ensure that Ragged Tensor RANK cannot be less than 1 (must have 2 or more dimensions)
         static_assert(RANK > 1, "Ragged Tensor rank cannot be less than 1.");
 
+        /* Member Types */
+        public:
+
+        static const size_t Rank = RANK;
+
         /* Constructors */
         public:
 
@@ -821,15 +920,25 @@ namespace jai {
         VTensor<RANK-1> operator [] ( size_t index );
 
         /**
-         * This returns a TensorTypeIterator corresponding to the first element of the first
+         * This returns a constant iterator corresponding to the first element of the first
          * dimension of `this` RaggedTensor.
          */
-        const TensorTypeIterator<RaggedTensor<RANK>> begin() const;
+        const ConstantTensorTypeIterator<RaggedTensor<RANK>> begin() const;
         /**
-         * This returns a TensorTypeIterator corresponding to one past the last element of
+         * This returns a constant iterator corresponding to one past the last element of
          * the first dimension of `this` RaggedTensor.
          */
-        const TensorTypeIterator<RaggedTensor<RANK>> end() const;
+        const ConstantTensorTypeIterator<RaggedTensor<RANK>> end() const;
+        /**
+         * This returns a iterator corresponding to the first element of the first
+         * dimension of `this` RaggedTensor.
+         */
+        const TensorTypeIterator<RaggedTensor<RANK>> begin();
+        /**
+         * This returns a iterator corresponding to one past the last element of
+         * the first dimension of `this` RaggedTensor.
+         */
+        const TensorTypeIterator<RaggedTensor<RANK>> end();
 
         /* Binary Operations */
         public:
@@ -1058,10 +1167,10 @@ namespace jai {
         /**
          * Checks that `indexes` is within the bounds of `tensor`.
          */
-        template<typename Tensor_t, size_t RANK>
+        template<typename Tensor_t>
         inline void debugCheckBound( 
             [[maybe_unused]] const Tensor_t& tensor, 
-            [[maybe_unused]] const size_t (&indexes)[RANK],
+            [[maybe_unused]] const size_t (&indexes)[Tensor_t::Rank],
             [[maybe_unused]] const size_t dim_index = 0
         ) {
         #ifdef DEBUG
@@ -1076,7 +1185,7 @@ namespace jai {
                 );
             }
             
-            if constexpr( RANK > 1 ) {
+            if constexpr( Tensor_t::Rank > 1 ) {
                 debugCheckBound(tensor[index], tail(indexes), dim_index + 1);
             }
         #endif
@@ -1345,12 +1454,22 @@ namespace jai {
     }
 
     template<size_t RANK>
-    const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::begin() const {
+    const ConstantTensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::begin() const {
+        return ConstantTensorTypeIterator<BaseTensor<RANK>>(*this, 0);
+    }
+
+    template<size_t RANK>
+    const ConstantTensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::end() const {
+        return ConstantTensorTypeIterator<BaseTensor<RANK>>(*this, this->size());
+    }
+
+    template<size_t RANK>
+    const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::begin() {
         return TensorTypeIterator<BaseTensor<RANK>>(*this, 0);
     }
 
     template<size_t RANK>
-    const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::end() const {
+    const TensorTypeIterator<BaseTensor<RANK>> BaseTensor<RANK>::end() {
         return TensorTypeIterator<BaseTensor<RANK>>(*this, this->size());
     }
  
@@ -2123,7 +2242,7 @@ namespace jai {
         }
         // Check that all Tensors have the same dimensions
         for( size_t i = 1; i < dim1; ++i ) {
-            for( size_t j = 0; j < RANK; ++j ) {
+            for( size_t j = 0; j < RANK-1; ++j ) {
                 if( this->dimensions[j+1] != tensor_refs[i].get().dimensions[j] ) {
                     throw std::invalid_argument("Two or more dimension sizes do not match.");
                 }
@@ -2665,12 +2784,22 @@ namespace jai {
     }
 
     template<size_t RANK>
-    const TensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::begin() const {
+    const ConstantTensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::begin() const {
+        return ConstantTensorTypeIterator<RaggedTensor<RANK>>(*this, 0);
+    }
+
+    template<size_t RANK>
+    const ConstantTensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::end() const {
+        return ConstantTensorTypeIterator<RaggedTensor<RANK>>(*this, this->size());
+    }
+
+    template<size_t RANK>
+    const TensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::begin() {
         return TensorTypeIterator<RaggedTensor<RANK>>(*this, 0);
     }
 
     template<size_t RANK>
-    const TensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::end() const {
+    const TensorTypeIterator<RaggedTensor<RANK>> RaggedTensor<RANK>::end() {
         return TensorTypeIterator<RaggedTensor<RANK>>(*this, this->size());
     }
  
