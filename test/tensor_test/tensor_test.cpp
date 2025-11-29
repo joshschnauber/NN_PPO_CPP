@@ -40,21 +40,6 @@ void test_base_tensor() {
     END_UNIT_TEST
 
 
-    UNIT_TEST("RANK=1 fill constructor")
-
-        const jai::Tensor<1> t1_2(5, 10);
-
-        test_equals( t1_2.rank(), 1 );
-        test_equals( t1_2.totalSize(), 5 );
-        test_equals( t1_2.size(), 5 );
-        test_equals( t1_2[0], 10 );
-        test_equals( t1_2[4], 10 );
-
-        test_throws(({ jai::Tensor<1> t1_2_t1(0, 10); }));
-
-    END_UNIT_TEST
-
-
     UNIT_TEST("RANK=1 element initializer constructor")
 
         const jai::Tensor<1> t1_3 = {1, 2, 3, 4, 5, 6, 7, 8};
@@ -93,33 +78,6 @@ void test_base_tensor() {
 
         test_throws(({ jai::Tensor<2> t2_4_t1({0, 10}); }));
         test_throws(({ jai::Tensor<2> t2_4_t2({10, 0}); }));
-
-    END_UNIT_TEST
-
-
-    UNIT_TEST("RANK=2 fill constructor")
-
-        const jai::Tensor<2> t2_5({2, 3}, 50);
-
-        test_equals( t2_5.rank(), 2 );
-        test_equals( t2_5.totalSize(), 6 );
-        test_equals( t2_5.size(0), 2 );
-        test_equals( t2_5.size(1), 3 );
-        test_equals( (t2_5[{0, 0}]), 50 );
-        test_equals( (t2_5[{0, 1}]), 50 );
-        test_equals( (t2_5[{0, 2}]), 50 );
-        test_equals( (t2_5[{1, 0}]), 50 );
-        test_equals( (t2_5[{1, 1}]), 50 );
-        test_equals( (t2_5[{1, 2}]), 50 );
-        test_equals( (t2_5[0][0]), 50 );
-        test_equals( (t2_5[0][1]), 50 );
-        test_equals( (t2_5[0][2]), 50 );
-        test_equals( (t2_5[1][0]), 50 );
-        test_equals( (t2_5[1][1]), 50 );
-        test_equals( (t2_5[1][2]), 50 );
-
-        test_throws(({ jai::Tensor<2> t2_4_t1({0, 10}, 51); }));
-        test_throws(({ jai::Tensor<2> t2_4_t2({10, 0}, 52); }));
 
     END_UNIT_TEST
 
@@ -179,7 +137,8 @@ void test_base_tensor() {
 
     UNIT_TEST("inner tensor accessor")
 
-        jai::Tensor<3> t3_8({3, 2, 2}, 81);
+        jai::Tensor<3> t3_8({3, 2, 2});
+        t3_8.fill(81);
         jai::VTensor<2> vt2_8 = t3_8[1];
         vt2_8[{0, 0}] = 82; vt2_8[{1, 0}] = 83; vt2_8[{0, 1}] = 84;
 
@@ -198,11 +157,13 @@ void test_base_tensor() {
 
     UNIT_TEST("view()")
 
-        jai::Tensor<1> t1_9(8, 90);
+        jai::Tensor<1> t1_9(8);
+        t1_9.fill(90);
         jai::VTensor<1> vt1_9 = t1_9.view();
         vt1_9[4] = 91;
         t1_9[5] = 92;
-        jai::Tensor<2> t2_9({100, 50}, 93);
+        jai::Tensor<2> t2_9({100, 50});
+        t2_9.fill(93);
         jai::VTensor<2> vt2_9 = t2_9.view();
         vt2_9[{1, 1}] = 94;
         t2_9[{2, 2}] = 95;

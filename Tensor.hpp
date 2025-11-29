@@ -53,10 +53,8 @@
  * - Add .copy() functions that returns a new Tensor, and make more non size changing
  *   mutators alter the Tensor instead of creating a new one.
  * 
- * - Remove constructors that have fill param, and replace them with the .fill() function.
- *   The .fill() function needs to be able to return a reference to the type of object
- *   it is being called on however, and not always just a BaseTensor.  
- * - Maybe add fill method that accepts a pointer as well.
+ * - Modifier functions needs to be able to return a reference to the type of object
+ *   they is being called on however, and not always just a BaseTensor.  
  */
 
 
@@ -472,6 +470,13 @@ namespace jai {
          */
         BaseTensor<RANK, NUM_T>& set( const BaseTensor<RANK, NUM_T>& other );
         /**
+         * Defined for RANK=1 Tensors, this sets each element in `this` Tensor to the 
+         * corresponding element in `elements`.
+         * `elements` must point to valid memory of at least the length of `this` Tensor.
+         */
+        BaseTensor<RANK, NUM_T>& set( const NUM_T* elements )
+        requires (RANK == 1);
+        /**
          * This transforms each element in `this` Tensor using the given 
          * `transform_function`, which should return a `NUM_T`.
          * `transform_function` can have an argument of type `NUM_T` and/or an argument 
@@ -666,32 +671,11 @@ namespace jai {
         Tensor( size_t dim )
         requires (RANK == 1);
         /**
-         * Defined for RANK=1 Tensors, constructs a Tensor with the given dimensions and
-         * with all values set to `fill`.
-         * Throws an error if `dim` is equal to 0.
-         */
-        Tensor( size_t dim, NUM_T fill )
-        requires (RANK == 1);
-        /**
-         * Defined for RANK=1 Tensors, constructs a Tensor with the given dimensions and
-         * set with the values from `fill`. `fill` must be have valid memory from index 0
-         * to `dim-1`.
-         * Throws an error if `dim` is equal to 0.
-         */
-        Tensor( size_t dim, const NUM_T fill[] )
-        requires (RANK == 1);
-        /**
          * Constructs a Tensor with the given dimensions.
          * Throws an error if any value in `dims` is equal to 0.
          */
         explicit 
         Tensor( const size_t (&dims)[RANK] );
-        /**
-         * Constructs a Tensor with the given dimensions and with all values set to
-         * `fill`.
-         * Throws an error if any value in `dims` is equal to 0.
-         */
-        Tensor( const size_t (&dims)[RANK], NUM_T fill );
         /**
          * Constructs a Tensor initialized with the given `elements`.
          * Throws an error if `elements` or any inner elements inside `elements` has a
@@ -1764,7 +1748,7 @@ namespace jai {
     
     template<size_t RANK, typename NUM_T>
     BaseTensor<RANK, NUM_T>& BaseTensor<RANK, NUM_T>::fill( const NUM_T fill ) {
-        fillValues(fill, this->data, this->total_size);
+        fillValues(fill, this->data_, this->total_size);
         return *this;
     }
     
@@ -1773,6 +1757,13 @@ namespace jai {
         debugCheckSizes(*this, other);
 
         setValues(other.data_, this->data_, this->total_size);
+        return *this;
+    }
+
+    template<size_t RANK, typename NUM_T>
+    BaseTensor<RANK, NUM_T>& BaseTensor<RANK, NUM_T>::set( const NUM_T* elements )
+    requires (RANK == 1) {
+        setValues(elements, this->data_, this->total_size);
         return *this;
     }
     
@@ -2231,20 +2222,6 @@ namespace jai {
     }
     
     template<size_t RANK, typename NUM_T>
-    Tensor<RANK, NUM_T>::Tensor( const size_t dim, const NUM_T fill ) 
-    requires (RANK == 1) 
-    : Tensor(dim) {
-        fillValues(fill, this->data_, this->total_size);
-    }
-    
-    template<size_t RANK, typename NUM_T>
-    Tensor<RANK, NUM_T>::Tensor( size_t dim, const NUM_T fill[] )
-    requires (RANK == 1) 
-    : Tensor(dim) {
-        setValues(fill, this->data_, dim);
-    }
-    
-    template<size_t RANK, typename NUM_T>
     Tensor<RANK, NUM_T>::Tensor( const size_t (&dims)[RANK] ) {
         // Copy dimensions
         size_t total_size = 1;
@@ -2259,12 +2236,6 @@ namespace jai {
         // Allocate memory for data
         this->total_size = total_size;
         this->data_ = new NUM_T[total_size];
-    }
-    
-    template<size_t RANK, typename NUM_T>
-    Tensor<RANK, NUM_T>::Tensor( const size_t (&dims)[RANK], const NUM_T fill ) 
-    : Tensor(dims) {
-        fillValues(fill, this->data_, this->total_size);
     }
     
     template<size_t RANK, typename NUM_T>
